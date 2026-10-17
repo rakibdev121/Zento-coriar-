@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<title>My parcels | ZENTO COURIER</title>
+<meta name="description" content="Your bookings and their status.">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header" id="site-header"></header>
+<main id="main">
+
+<div class="shell page">
+  <div class="page-head toolbar"><div><h1 style="font-size:clamp(2rem,5vw,3rem);margin:0" id="greeting">My parcels</h1></div><a class="btn btn-primary" href="book.html">Book a parcel</a></div>
+  <div class="stats" id="stats"></div>
+  <div class="toolbar"><h2 style="margin:0;font-size:1.3rem">All bookings</h2>
+    <div><label class="skip" for="filter">Filter by status</label><select id="filter"><option value="">All statuses</option></select></div></div>
+  <div id="list" aria-live="polite"></div>
+  <div class="pager" id="pager"></div>
+  <dialog id="detail" aria-labelledby="detail-title"></dialog>
+</div>
+</main>
+<footer class="site-footer" id="site-footer"></footer>
+<noscript><p class="shell" style="padding:1rem">ZENTO COURIER needs JavaScript to run. Please enable it and reload.</p></noscript>
+<script type="module" src="js/dashboard.js"></script>
+</body>
+</html>

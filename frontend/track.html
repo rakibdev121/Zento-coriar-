@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<title>Track a parcel | ZENTO COURIER</title>
+<meta name="description" content="Enter your tracking number to see where your parcel is.">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header" id="site-header"></header>
+<main id="main">
+
+<div class="shell page">
+  <div class="page-head"><h1 style="font-size:clamp(2rem,5vw,3rem)">Track a parcel</h1></div>
+  <form class="card" id="track-form" style="max-width:620px">
+    <div class="field" style="margin:0"><label for="n">Tracking number</label>
+      <div class="track-form"><input id="n" name="n" placeholder="ZNT4K7M2QX9" autocomplete="off" autocapitalize="characters" required maxlength="20"><button class="btn btn-primary" type="submit">Track</button></div>
+      <p class="err" id="track-error" role="alert"></p></div>
+  </form>
+  <section id="result" aria-live="polite" style="margin-top:1.5rem"></section>
+</div>
+</main>
+<footer class="site-footer" id="site-footer"></footer>
+<noscript><p class="shell" style="padding:1rem">ZENTO COURIER needs JavaScript to run. Please enable it and reload.</p></noscript>
+<script type="module" src="js/track.js"></script>
+</body>
+</html>

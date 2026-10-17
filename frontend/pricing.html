@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<title>Prices | ZENTO COURIER</title>
+<meta name="description" content="Calculate your delivery price instantly.">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header" id="site-header"></header>
+<main id="main">
+
+<div class="shell page">
+  <div class="page-head"><h1 style="font-size:clamp(2rem,5vw,3rem)">Delivery prices</h1><p class="muted">No account needed. This is the same calculation used when you book.</p></div>
+  <div class="layout-aside">
+    <form class="card" id="quote-form" novalidate>
+      <fieldset><legend>Where is it going?</legend><div class="choice-row" id="zone-choices" role="radiogroup" aria-label="Zone"></div></fieldset>
+      <fieldset><legend>How fast?</legend><div class="choice-row" id="service-choices" role="radiogroup" aria-label="Service"></div></fieldset>
+      <fieldset><legend>The parcel</legend>
+        <div class="field"><label for="weight_kg">Weight (kg)</label><input id="weight_kg" name="weight_kg" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="2.5"><p class="err" data-for="weight_kg"></p></div>
+        <div class="grid-3">
+          <div class="field"><label for="length_cm">Length (cm)</label><input id="length_cm" name="length_cm" type="number" inputmode="numeric" min="1" step="1"></div>
+          <div class="field"><label for="width_cm">Width (cm)</label><input id="width_cm" name="width_cm" type="number" inputmode="numeric" min="1" step="1"></div>
+          <div class="field"><label for="height_cm">Height (cm)</label><input id="height_cm" name="height_cm" type="number" inputmode="numeric" min="1" step="1"></div>
+        </div>
+        <p class="hint" style="margin-top:-.5rem">Optional. Bulky parcels are charged on size when that is more than their weight.</p>
+        <div class="field"><label for="declared_value">Value to insure</label><input id="declared_value" name="declared_value" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0"></div>
+        <label class="check"><input type="checkbox" name="fragile"> This parcel is fragile</label>
+      </fieldset>
+    </form>
+    <aside class="quote sticky" id="quote-panel" aria-live="polite"></aside>
+  </div>
+  <p style="margin-top:1.5rem"><a class="btn btn-primary" href="book.html">Book this parcel</a></p>
+</div>
+</main>
+<footer class="site-footer" id="site-footer"></footer>
+<noscript><p class="shell" style="padding:1rem">ZENTO COURIER needs JavaScript to run. Please enable it and reload.</p></noscript>
+<script type="module" src="js/pricing.js"></script>
+</body>
+</html>
