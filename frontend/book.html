@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<title>Book a parcel | ZENTO COURIER</title>
+<meta name="description" content="Book a pickup and get a tracking number.">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header" id="site-header"></header>
+<main id="main">
+
+<div class="shell page">
+  <div class="page-head"><h1 style="font-size:clamp(2rem,5vw,3rem)">Book a parcel</h1><p class="muted">The price on the right is what you pay. It updates as you fill in the form.</p></div>
+  <div class="layout-aside" id="book-layout">
+    <form class="card" id="book-form"><div class="form-error" role="alert" hidden></div>
+      <div id="sender"></div><div id="recipient"></div>
+      <fieldset><legend>Distance and speed</legend>
+        <div class="choice-row" id="zone-choices" role="radiogroup" aria-label="Zone"></div><p class="err" data-for="zone"></p>
+        <div class="choice-row" id="service-choices" role="radiogroup" aria-label="Service" style="margin-top:.8rem"></div><p class="err" data-for="service"></p>
+      </fieldset>
+      <fieldset><legend>The parcel</legend><div id="parcel"></div></fieldset>
+      <button class="btn btn-primary" type="submit">Confirm booking</button>
+    </form>
+    <aside class="quote sticky" id="quote-panel" aria-live="polite"></aside>
+  </div>
+  <div class="card success narrow" id="done" hidden></div>
+</div>
+</main>
+<footer class="site-footer" id="site-footer"></footer>
+<noscript><p class="shell" style="padding:1rem">ZENTO COURIER needs JavaScript to run. Please enable it and reload.</p></noscript>
+<script type="module" src="js/book.js"></script>
+</body>
+</html>
