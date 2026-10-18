@@ -24,6 +24,20 @@ export function requireAuth() {
   return true;
 }
 
+/** Download a protected file (for example a parcel PDF) with the session token. */
+export async function downloadFile(path, filename) {
+  let res;
+  try { res = await fetch(`/api${path}`, { headers: { Authorization: `Bearer ${getToken()}` } }); }
+  catch { throw new ApiError("Cannot reach the server. Check your connection and try again.", 0); }
+  if (!res.ok) {
+    if (res.status === 401) clearSession();
+    let data = null; try { data = await res.json(); } catch { /* no body */ }
+    throw new ApiError(typeof data?.detail === "string" ? data.detail : "Could not download the file. Please try again.", res.status);
+  }
+  const url = URL.createObjectURL(await res.blob()), a = document.createElement("a");
+  a.href = url; a.download = filename; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
 /** Only allow redirects to same-site relative pages, never to other origins. */
 export function safeNext(raw, fallback = "dashboard.html") {
   return typeof raw === "string" && /^[a-z0-9_\-]+\.html(\?[\w=&%\-]*)?$/i.test(raw) ? raw : fallback;

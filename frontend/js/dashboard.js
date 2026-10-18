@@ -1,4 +1,4 @@
-import { api, requireAuth, getUser } from "./api.js";
+import { api, requireAuth, getUser, downloadFile } from "./api.js";
 import { renderChrome, h, money, fmtDate, statusBadge, STATUS_LABEL, renderTimeline, toast } from "./ui.js";
 
 if (!requireAuth()) await new Promise(() => {}); // redirecting to sign in; stop this module quietly
@@ -76,9 +76,16 @@ async function openDetail(id) {
         ...(p.description ? kv("Contents", p.description) : []),
         ...kv("Total", money(p.price_total, state.currency))),
       h("h3", {}, "Progress"), renderTimeline(p.events, p.status),
-      p.status === "booked" ? h("div", { style: "margin-top:1.25rem" }, h("button", { class: "btn btn-danger", type: "button", onclick: (e) => cancel(p, e.currentTarget) }, "Cancel this booking")) : null));
+      h("div", { style: "margin-top:1.25rem;display:flex;gap:.6rem;flex-wrap:wrap" },
+        h("button", { class: "btn btn-ghost", type: "button", onclick: (e) => savePdf(p, e.currentTarget) }, "Download PDF"),
+        p.status === "booked" ? h("button", { class: "btn btn-danger", type: "button", onclick: (e) => cancel(p, e.currentTarget) }, "Cancel this booking") : null)));
     els.detail.showModal();
   } catch (err) { err.status === 401 ? handle(err) : toast(err.message); }
+}
+
+async function savePdf(p, btn) {
+  btn.disabled = true;
+  try { await downloadFile(`/parcels/${p.id}/pdf`, `${p.tracking_number}.pdf`); } catch (err) { toast(err.message); } finally { btn.disabled = false; }
 }
 
 async function cancel(p, btn) {

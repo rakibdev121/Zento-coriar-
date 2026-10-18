@@ -13,7 +13,7 @@ from sqlalchemy import text
 from app.config import get_settings
 from app.database import SessionLocal
 from app.bootstrap import ensure_admin
-from app.routers import admin, auth, dashboard, parcels, pricing, tracking
+from app.routers import admin, auth, dashboard, parcels, pricing, rider, tracking
 
 log = logging.getLogger("zento")
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
@@ -72,12 +72,16 @@ def create_app() -> FastAPI:
             db.execute(text("SELECT 1"))
         return {"status": "ok"}
 
-    for module in (auth, pricing, parcels, tracking, dashboard, admin):
+    for module in (auth, pricing, parcels, tracking, dashboard, admin, rider):
         app.include_router(module.router, prefix="/api")
 
     @app.get("/admin", include_in_schema=False)
     def admin_page():
         return FileResponse(FRONTEND_DIR / "admin" / "index.html", headers={"Cache-Control": "no-cache"})
+
+    @app.get("/rider", include_in_schema=False)
+    def rider_page():
+        return FileResponse(FRONTEND_DIR / "rider" / "index.html", headers={"Cache-Control": "no-cache"})
 
     if FRONTEND_DIR.is_dir():
         app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

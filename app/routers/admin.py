@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -16,7 +16,9 @@ from sqlalchemy.exc import IntegrityError
 from app import pricing as pricing_rules
 from app.config import get_settings
 from app.deps import CurrentAdmin, DbSession
-from app.models import ActivityLog, CourierProvider, Parcel, Rider, ServiceArea, TrackingEvent, User
+from app.models import ActivityLog, CourierProvider, Parcel, Rider, RiderDocument, ServiceArea, TrackingEvent, User
+from app.pdf import build_parcel_pdf
+from app.rider_logic import settle_delivery
 from app.routers.parcels import create_parcel_record
 from app.schemas import City, Name, ParcelCreate, ParcelStatus, Phone, RegisterRequest, _check_phone
 from app.security import hash_password, verify_password
@@ -81,6 +83,8 @@ def _parcel_detail(p: Parcel) -> dict:
         "delivery_address": p.delivery_address, "weight_kg": str(p.weight_kg), "chargeable_weight_kg": str(p.chargeable_weight_kg),
         "declared_value": str(p.declared_value), "fragile": p.fragile, "description": p.description,
         "price_breakdown": p.price_breakdown, "customer_phone": p.user.phone,
+        "rider_response": p.rider_response, "rider_note": p.rider_note,
+        "rider_commission": str(p.rider_commission) if p.rider_commission is not None else None,
         "events": [{"status": e.status, "note": e.note, "location": e.location, "created_at": _iso(e.created_at)} for e in p.events],
     }
 
@@ -223,6 +227,13 @@ def parcel_detail(parcel_id: int, db: DbSession, admin: CurrentAdmin):
     return _parcel_detail(_get_or_404(db, Parcel, parcel_id, "Parcel"))
 
 
+@router.get("/parcels/{parcel_id}/pdf")
+def parcel_pdf(parcel_id: int, db: DbSession, admin: CurrentAdmin):
+    p = _get_or_404(db, Parcel, parcel_id, "Parcel")
+    return Response(content=build_parcel_pdf(p, get_settings().currency, audience="admin"), media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{p.tracking_number}.pdf"', "Cache-Control": "no-store"})
+
+
 class ParcelUpdate(BaseModel):
     status: ParcelStatus | None = None
     note: Annotated[str, Field(max_length=255)] | None = None
@@ -241,12 +252,16 @@ def update_parcel(parcel_id: int, payload: ParcelUpdate, db: DbSession, admin: C
         if terminal:
             raise HTTPException(status.HTTP_409_CONFLICT, "This parcel is already closed.")
         if payload.rider_id is None:
-            p.rider_id = None
+            p.rider_id, p.rider_response, p.rider_assigned_at = None, None, None
         else:
             rider = _get_or_404(db, Rider, payload.rider_id, "Rider")
+            if rider.status != "approved":
+                raise HTTPException(status.HTTP_409_CONFLICT, "That rider has not been approved yet.")
             if not rider.is_active:
                 raise HTTPException(status.HTTP_409_CONFLICT, "That rider is inactive.")
-            p.rider_id = rider.id
+            p.rider_id, p.rider_note = rider.id, None
+            # Riders with an app login must accept first; riders an admin added by hand (no login) are simply assigned.
+            p.rider_response, p.rider_assigned_at = ("pending", datetime.now(timezone.utc)) if rider.user_id else (None, None)
             _log(db, "rider", "Rider Assigned", f"{rider.full_name} · {p.tracking_number}")
     if "provider_id" in sent and payload.provider_id != p.provider_id:
         if terminal:
@@ -262,6 +277,8 @@ def update_parcel(parcel_id: int, payload: ParcelUpdate, db: DbSession, admin: C
             raise HTTPException(status.HTTP_409_CONFLICT, f"A {p.status.replace('_', ' ')} parcel cannot move to {new.replace('_', ' ')}.")
         p.status = new
         p.events.append(TrackingEvent(status=new, note=(payload.note or "").strip() or DEFAULT_NOTES[new], location=(payload.location or "").strip() or None))
+        if new == "delivered":
+            settle_delivery(p)
         _log(db, "delivered" if new == "delivered" else "status", "Parcel Delivered" if new == "delivered" else "Status Updated",
              p.tracking_number if new == "delivered" else f"{p.tracking_number} · {new.replace('_', ' ')}")
     db.commit()
@@ -354,7 +371,9 @@ class RiderIn(BaseModel):
 
 def _rider_out(r: Rider, active: int = 0, delivered: int = 0) -> dict:
     return {"id": r.id, "full_name": r.full_name, "phone": r.phone, "vehicle": r.vehicle, "city": r.city, "is_active": r.is_active,
-            "active_deliveries": active, "delivered": delivered, "created_at": _iso(r.created_at)}
+            "active_deliveries": active, "delivered": delivered, "created_at": _iso(r.created_at),
+            "status": r.status, "email": r.user.email if r.user else None, "has_login": r.user_id is not None,
+            "id_type": r.id_type, "id_number": r.id_number, "reject_reason": r.reject_reason, "reviewed_at": _iso(r.reviewed_at)}
 
 
 @router.get("/riders")
@@ -365,7 +384,7 @@ def list_riders(db: DbSession, admin: CurrentAdmin):
             counts[rid][0] += n
         elif st == "delivered":
             counts[rid][1] += n
-    return {"items": [_rider_out(r, *counts[r.id]) for r in db.scalars(select(Rider).order_by(Rider.is_active.desc(), Rider.full_name))]}
+    return {"items": [_rider_out(r, *counts[r.id]) for r in db.scalars(select(Rider).order_by(case((Rider.status == "pending", 0), else_=1), Rider.is_active.desc(), Rider.full_name))]}
 
 
 @router.post("/riders", status_code=status.HTTP_201_CREATED)
@@ -383,6 +402,40 @@ def edit_rider(rider_id: int, payload: RiderIn, db: DbSession, admin: CurrentAdm
         setattr(r, k, v)
     db.commit()
     return _rider_out(r)
+
+
+class RejectIn(BaseModel):
+    reason: Annotated[str, Field(min_length=3, max_length=255)]
+
+
+@router.post("/riders/{rider_id}/approve")
+def approve_rider(rider_id: int, db: DbSession, admin: CurrentAdmin):
+    r = _get_or_404(db, Rider, rider_id, "Rider")
+    if r.status == "approved":
+        raise HTTPException(status.HTTP_409_CONFLICT, "This rider is already approved.")
+    r.status, r.is_active, r.reject_reason, r.reviewed_at = "approved", True, None, datetime.now(timezone.utc)
+    _log(db, "rider", "Rider Approved", r.full_name)
+    db.commit()
+    return _rider_out(r)
+
+
+@router.post("/riders/{rider_id}/reject")
+def reject_rider(rider_id: int, payload: RejectIn, db: DbSession, admin: CurrentAdmin):
+    r = _get_or_404(db, Rider, rider_id, "Rider")
+    if r.status != "pending":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only pending applications can be rejected.")
+    r.status, r.is_active, r.reject_reason, r.reviewed_at = "rejected", False, payload.reason.strip(), datetime.now(timezone.utc)
+    _log(db, "rider", "Rider Rejected", r.full_name)
+    db.commit()
+    return _rider_out(r)
+
+
+@router.get("/riders/{rider_id}/documents/{kind}")
+def rider_document(rider_id: int, kind: Literal["photo", "id_document"], db: DbSession, admin: CurrentAdmin):
+    doc = db.scalar(select(RiderDocument).where(RiderDocument.rider_id == rider_id, RiderDocument.kind == kind))
+    if doc is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found.")
+    return Response(content=doc.data, media_type=doc.content_type, headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
 
 
 @router.delete("/riders/{rider_id}", status_code=status.HTTP_204_NO_CONTENT)

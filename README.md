@@ -4,7 +4,7 @@ Courier delivery web app: public website, customer accounts, parcel booking with
 
 **Stack:** FastAPI + SQLAlchemy 2 + Alembic + PostgreSQL (Supabase-ready) on the back end; plain HTML, CSS and vanilla JavaScript (ES modules) on the front end. No Node.js is needed to run anything. FastAPI serves the API under `/api` and the static site from `frontend/`, so one process is enough.
 
-**Admin panel:** served at `/admin` (see below). **Not built yet:** rider mobile panel, payments, editable pricing rules.
+**Admin panel:** served at `/admin`. **Rider app:** served at `/rider` (phone-first). **Not built yet:** payments, rider withdrawals/payouts, editable pricing rules.
 
 ## Quick start
 
@@ -43,6 +43,8 @@ Supabase enables Row Level Security on tables created through its dashboard. Tab
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | no | Default 720 (12 h) |
 | `CURRENCY` | no | ISO code shown in prices, default `USD` |
 | `CORS_ORIGINS` | no | Comma-separated. Only needed if the frontend is hosted on a different origin |
+| `RIDER_COMMISSION_RATE` | no | Share of the parcel price a rider earns on delivery, default `0.20` |
+| `RIDER_DAILY_GOAL` | no | Daily earnings goal shown in the rider app, default `2000` |
 
 ## Admin panel (`/admin`)
 
@@ -53,6 +55,20 @@ Dark dashboard for staff: dashboard, parcels (status updates, rider and courier 
 3. Everything the panel does goes through `/api/admin/*`, which returns 403 for non-admin accounts.
 
 Notes: *Recent Activities* and *Notifications* combine new bookings, new customers and staff actions. The Live Tracking map is an illustration of the route between the two cities; the app stores no GPS coordinates. Service areas are informational and are not enforced when customers book.
+
+## Rider app (`/rider`)
+
+1. **Apply:** a rider opens `/rider`, taps *Apply as rider* and sends name, phone, city, vehicle, own photo, NID or passport (type, number, photo), email and password. The photos are resized in the browser and stored in the database (`rider_documents`); only admins can read them. The application starts as **pending** and the rider can sign in but cannot work yet.
+2. **Approve:** in `/admin` open *Riders*, press *Review* on a pending application, check the photo and ID, then *Approve rider* or *Reject* with a reason. A rejected application can still be approved later.
+3. **Assign:** in a parcel's detail window the admin picks an approved rider. The rider gets the parcel under *New Requests* and must **accept or reject** it. A rejection sends the parcel back to the admin queue (the admin sees who rejected it and why). Until the rider accepts, the rider sees addresses but no names or phone numbers.
+4. **Deliver:** after accepting, the rider moves the parcel *Confirm Pickup -> Start Delivery -> Mark Delivered*. Each step is added to the customer's tracking timeline.
+5. **Commission:** when the parcel is delivered (by the rider or by an admin) the rider earns `RIDER_COMMISSION_RATE` of the parcel price (default `0.20` = 20%), stored on the parcel as `rider_commission`. The wallet shows the total earned, today's earnings against `RIDER_DAILY_GOAL` (default 2000) and the delivery streak.
+
+Riders added by hand with *Add Rider* have no login; they are approved straight away and assigned without the accept/reject step, as before.
+
+## Parcel PDF
+
+Customers (*My parcels* -> *Details* -> *Download PDF*) and admins (parcel window -> *PDF*) can download a PDF with the tracking number and barcode, sender, recipient, shipment details, price breakdown and tracking history. The admin copy also shows the customer account, rider contact and rider commission. The PDF fonts are Latin only: Bengali or other scripts print as `?` (supporting them needs a font plus a text-shaping library).
 
 ## Tests
 
@@ -78,7 +94,13 @@ Tests use an in-memory SQLite database, so no Postgres is needed. They cover pri
 | `GET /api/dashboard/summary` | yes | Counts, total spent, recent parcels |
 | `GET /api/track/{tracking_number}` | no | Public tracking: cities, status, timeline. No names, phones or street addresses |
 | `GET /api/health` | no | Database connectivity check |
-| `/api/admin/*` | admin | Dashboard, parcels, bookings, customers, riders, providers, areas, pricing, reports, notifications |
+| `GET /api/parcels/{id}/pdf` | yes | Download your own parcel as a PDF |
+| `POST /api/rider/apply` | no | Rider application (name, phone, city, photo, NID/passport, email, password) |
+| `GET /api/rider/me` | rider | Own profile and application status (works while pending/rejected) |
+| `GET /api/rider/dashboard`, `/parcels?tab=requests\|active\|history`, `/earnings` | approved rider | Wallet, requests, active order, history, commission |
+| `POST /api/rider/parcels/{id}/respond` | approved rider | `accept` or `reject` an assigned parcel |
+| `POST /api/rider/parcels/{id}/status` | approved rider | `picked_up` -> `out_for_delivery` -> `delivered` |
+| `/api/admin/*` | admin | Dashboard, parcels (+ `/parcels/{id}/pdf`), bookings, customers, riders (+ `approve`, `reject`, `documents/{photo\|id_document}`), providers, areas, pricing, reports, notifications |
 
 Validation errors return `422` as `{"detail": "...", "errors": [{"field": "...", "message": "..."}]}`; the frontend maps `field` to the input.
 
@@ -103,7 +125,13 @@ tests/          pytest suite
 * The login rate limiter is in-memory and per process. Use a shared store such as Redis if you run several workers.
 * Users can only read or cancel their own parcels; other users' IDs return 404.
 
-## Verification status
+## Verification status (rider panel and PDF)
+
+Executed in a sandbox without network access (FastAPI, SQLAlchemy and Alembic could not be installed there): the PDF builder (customer and admin copies generated and read back), image validation and commission rounding, all Python files compile, the rider app and the admin *Riders* page were driven in headless Chromium against a throwaway mock API (apply with a field error, pending screen, sign in, accept, pickup, delivery, earnings, profile, review and approve with ID photos; no script errors, no horizontal overflow on a 390 px phone).
+
+**Not executed:** the real API routes, migration `0003` and `tests/test_rider.py` (written against the real routes). Run `pytest` after deploying; any failure there is a real defect to fix.
+
+## Verification status (phase 1)
 
 What was actually executed when this was built (in a sandbox with no network, so the Python dependencies could not be installed):
 

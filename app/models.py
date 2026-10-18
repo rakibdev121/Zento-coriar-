@@ -2,7 +2,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, false, func, true
+from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, ForeignKey, Integer, LargeBinary, Numeric, String, UniqueConstraint, false, func, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -63,6 +63,13 @@ class Parcel(Base):
     price_total: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     price_breakdown: Mapped[list] = mapped_column(JSON)
 
+    # Rider hand-off: admin assigns -> "pending"; the rider answers "accepted" or "rejected" (a rejection frees the parcel again).
+    rider_response: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    rider_assigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rider_note: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    rider_commission: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -96,6 +103,29 @@ class Rider(Base):
     vehicle: Mapped[str] = mapped_column(String(30), default="bike", server_default="bike")
     city: Mapped[str | None] = mapped_column(String(80), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # Riders who applied through /rider have a login (user_id) and start "pending"; riders added by an admin are "approved".
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, unique=True)
+    status: Mapped[str] = mapped_column(String(12), default="approved", server_default="approved")
+    id_type: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    id_number: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    reject_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped["User"] = relationship(lazy="joined")
+
+
+class RiderDocument(Base):
+    """Rider photo and NID/passport image. Stored in the database so they survive redeploys; only admins can read them."""
+    __tablename__ = "rider_documents"
+    __table_args__ = (UniqueConstraint("rider_id", "kind"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    rider_id: Mapped[int] = mapped_column(ForeignKey("riders.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))  # "photo" | "id_document"
+    content_type: Mapped[str] = mapped_column(String(20))
+    data: Mapped[bytes] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

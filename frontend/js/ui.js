@@ -38,7 +38,7 @@ export function renderChrome(active) {
   const user = getUser(), signedIn = !!getToken();
   const link = (href, label) => h("a", { href, "aria-current": href === active ? "page" : null }, label);
   const nav = h("nav", { class: "nav", id: "site-nav", "aria-label": "Main" },
-    link("pricing.html", "Prices"), link("track.html", "Track a parcel"),
+    link("pricing.html", "Prices"), link("track.html", "Track a parcel"), h("a", { href: "/rider" }, "Ride with us"),
     signedIn ? [link("book.html", "Book a parcel"), link("dashboard.html", "My parcels"),
       h("button", { class: "btn btn-ghost btn-sm", type: "button", onclick: signOut }, "Sign out")]
       : [link("login.html", "Sign in"), h("a", { class: "btn btn-primary btn-sm", href: "register.html" }, "Create account")]);

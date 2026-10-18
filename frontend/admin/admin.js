@@ -80,6 +80,12 @@ async function api(path, { method = "GET", body, auth = true, blob = false } = {
   throw new ApiError(typeof data?.detail === "string" ? data.detail : "Something went wrong. Please try again.", res.status, Array.isArray(data?.errors) ? data.errors : []);
 }
 
+/** Fetch a protected file with the admin token and hand it to the browser as a download. */
+async function downloadPdf(path, filename) {
+  const blob = await api(path, { blob: true }), url = URL.createObjectURL(blob), a = h("a", { href: url, download: filename });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
 /* ---------- UI helpers ---------- */
 const state = { user: null, unread: 0, pending: 0, renderId: 0 };
 function toast(msg, bad = false) {
@@ -340,10 +346,13 @@ async function openParcel(id, changed) {
     const btn = h("button", { class: "btn primary", type: "submit" }, "Save changes");
     const kv = (k, val) => h("div", {}, h("small", {}, k), h("span", {}, val ?? "–"));
     body.replaceChildren(
-      h("div", { class: "card-head" }, h("div", {}, h("b", { class: "mono", style: "font-size:17px" }, p.tracking_number), h("div", { class: "muted" }, `Booked ${dLong(p.created_at)}`)), pill(p.status)),
+      h("div", { class: "card-head" }, h("div", {}, h("b", { class: "mono", style: "font-size:17px" }, p.tracking_number), h("div", { class: "muted" }, `Booked ${dLong(p.created_at)}`)), h("div", { class: "toolbar", style: "margin:0" }, pill(p.status),
+        h("button", { class: "btn sm", type: "button", onclick: async (e) => { const b = e.currentTarget; b.disabled = true; try { await downloadPdf(`/admin/parcels/${id}/pdf`, `${p.tracking_number}.pdf`); } catch (err) { toast(err.message, true); } finally { b.disabled = false; } } }, icon("download", 14), "PDF"))),
       h("div", { class: "kv" }, kv("Customer", `${p.customer_name} · ${p.customer_email}`), kv("Price", money(p.price_total)), kv("Sender", `${p.sender_name} · ${p.sender_phone}`), kv("Recipient", `${p.recipient_name} · ${p.recipient_phone}`),
         kv("Pickup", `${p.pickup_address}, ${p.pickup_city}`), kv("Delivery", `${p.delivery_address}, ${p.delivery_city}`), kv("Service", `${p.zone} · ${p.service.replace("_", " ")}`),
-        kv("Weight", `${p.weight_kg} kg (chargeable ${p.chargeable_weight_kg} kg)`), kv("Declared value", money(p.declared_value)), kv("ETA", etaLabel(p.eta)), p.description && kv("Contents", p.description), p.fragile && kv("Handling", "Fragile")),
+        kv("Weight", `${p.weight_kg} kg (chargeable ${p.chargeable_weight_kg} kg)`), kv("Declared value", money(p.declared_value)), kv("ETA", etaLabel(p.eta)), p.description && kv("Contents", p.description), p.fragile && kv("Handling", "Fragile"),
+        p.rider_response && kv("Rider response", { pending: "Waiting for the rider to accept", accepted: "Accepted by the rider", rejected: p.rider_note || "Rejected by the rider" }[p.rider_response]),
+        !p.rider_response && p.rider_note && kv("Last rider response", p.rider_note), p.rider_commission && kv("Rider commission", money(p.rider_commission))),
       h("div", { class: "muted", style: "margin-bottom:6px" }, p.price_breakdown.map((l) => `${l.label}: ${money(l.amount)}`).join("  ·  ")), h("hr"),
       h("h3", { style: "margin-bottom:10px" }, "Timeline"), h("ul", { class: "timeline" }, [...p.events].reverse().map((e) => h("li", {}, h("div", {}, h("b", {}, STATUS[e.status]), " — ", e.note, h("small", {}, `${dLong(e.created_at)}${e.location ? ` · ${e.location}` : ""}`))))),
       closed ? h("p", { class: "muted" }, "This parcel is closed; it can no longer be changed.") : h("form", { class: "form", onsubmit: (e) => {
@@ -448,7 +457,46 @@ function simpleList(title, sub, addLabel, endpoint, cols, openForm, noun) {
     await load();
   };
 }
-PAGES.riders = simpleList("Riders", "Delivery riders and their workload.", "Add Rider", "riders", [{ h: "Name", r: (r) => r.full_name }, { h: "Phone", r: (r) => r.phone }, { h: "Vehicle", r: (r) => r.vehicle }, { h: "City", r: (r) => r.city || "–" }, { h: "Open jobs", r: (r) => r.active_deliveries }, { h: "Delivered", r: (r) => r.delivered }], openRiderForm, { name: (x) => x.full_name, empty: "No riders yet. Add your first rider." });
+const RIDER_PILL = { pending: "Pending review", approved: "Approved", rejected: "Rejected" };
+function openRiderReview(r, done) {
+  const body = h("div", {}, h("div", { class: "empty" }, "Loading\u2026")), m = modal(`Rider application: ${r.full_name}`, body, { wide: true });
+  (async () => {
+    const doc = async (kind, label) => {
+      try { const u = URL.createObjectURL(await api(`/admin/riders/${r.id}/documents/${kind}`, { blob: true })); return h("figure", { class: "doc" }, h("img", { src: u, alt: label }), h("figcaption", {}, label)); }
+      catch { return h("div", { class: "muted" }, `${label}: not available`); }
+    };
+    const [photo, idDoc] = await Promise.all([doc("photo", "Rider photo"), doc("id_document", r.id_type === "passport" ? "Passport" : "National ID")]);
+    const kv = (k, v) => h("div", {}, h("small", {}, k), h("span", {}, v || "\u2013")), errs = {}, box = FORM_BOX();
+    const reason = h("input", { placeholder: "Reason (shown to the rider if you reject)" }), approve = h("button", { class: "btn primary", type: "button" }, r.status === "rejected" ? "Approve anyway" : "Approve rider"), reject = h("button", { class: "btn danger", type: "button" }, "Reject");
+    approve.onclick = () => run(approve, box, errs, async () => { await api(`/admin/riders/${r.id}/approve`, { method: "POST" }); m.close(); toast("Rider approved"); done?.(); });
+    reject.onclick = () => run(reject, box, errs, async () => { if (reason.value.trim().length < 3) throw new ApiError("Write a short reason first.", 0); await api(`/admin/riders/${r.id}/reject`, { method: "POST", body: { reason: reason.value.trim() } }); m.close(); toast("Application rejected"); done?.(); });
+    body.replaceChildren(
+      h("div", { class: "kv" }, kv("Name", r.full_name), kv("Status", RIDER_PILL[r.status]), kv("Phone", r.phone), kv("Email", r.email), kv("City", r.city), kv("Vehicle", r.vehicle),
+        kv(r.id_type === "passport" ? "Passport number" : "NID number", r.id_number), kv("Applied", dLong(r.created_at)), r.reject_reason && kv("Rejection reason", r.reject_reason)),
+      h("div", { class: "docs" }, photo, idDoc), box,
+      r.status === "pending" ? h("div", { class: "form" }, fld("Rejection reason", reason), h("div", { class: "actions" }, reject, approve))
+        : r.status === "rejected" ? h("div", { class: "actions" }, approve) : h("p", { class: "muted" }, "This rider is approved. Use Edit to switch the account on or off."));
+  })().catch((e) => body.replaceChildren(h("div", { class: "form-err" }, e.message)));
+}
+PAGES.riders = async (ctx) => {
+  const listEl = h("div"), tabsEl = h("div", { class: "toolbar" }); let filter = "all";
+  async function load() {
+    const r = await api("/admin/riders"); if (ctx.stale()) return;
+    const count = (k) => (k === "all" ? r.items.length : r.items.filter((x) => x.status === k).length);
+    tabsEl.replaceChildren(...[["all", "All"], ["pending", "Pending"], ["approved", "Approved"], ["rejected", "Rejected"]].map(([k, l]) =>
+      h("button", { class: "btn sm" + (filter === k ? " primary" : ""), type: "button", onclick: () => { filter = k; load(); } }, `${l} (${count(k)})`)));
+    const actions = { h: "Actions", r: (x) => h("div", { class: "toolbar", style: "margin:0;flex-wrap:nowrap" },
+      x.has_login && x.status !== "approved" ? h("button", { class: "btn sm primary", onclick: () => openRiderReview(x, load) }, "Review") : x.has_login ? h("button", { class: "btn sm", onclick: () => openRiderReview(x, load) }, "View") : null,
+      h("button", { class: "btn sm", onclick: () => openRiderForm(x, load) }, "Edit"),
+      h("button", { class: "btn sm danger", onclick: async () => { if (!confirm(`Delete ${x.full_name}? This cannot be undone.`)) return; try { await api(`/admin/riders/${x.id}`, { method: "DELETE" }); toast("Deleted"); load(); } catch (e) { toast(e.message, true); } } }, "Delete")) };
+    const cols = [{ h: "Name", r: (x) => h("span", {}, x.full_name, x.email ? h("small", { class: "muted", style: "display:block" }, x.email) : null) }, { h: "Phone", r: (x) => x.phone }, { h: "Vehicle", r: (x) => x.vehicle }, { h: "City", r: (x) => x.city || "\u2013" },
+      { h: "Open jobs", r: (x) => x.active_deliveries }, { h: "Delivered", r: (x) => x.delivered },
+      { h: "Status", r: (x) => (x.status === "approved" ? h("span", { class: `pill ${x.is_active ? "on" : "off"}` }, x.is_active ? "Active" : "Inactive") : h("span", { class: `pill ${x.status}` }, RIDER_PILL[x.status])) }, actions];
+    listEl.replaceChildren(table(cols, r.items.filter((x) => filter === "all" || x.status === filter), "No riders here yet."));
+  }
+  ctx.el.replaceChildren(pageHead("Riders", "Applications from the rider app, and the riders you assign parcels to.", h("button", { class: "btn primary", onclick: () => openRiderForm(null, load) }, icon("plus", 16), "Add Rider")), h("div", { class: "card" }, tabsEl, listEl));
+  await load();
+};
 PAGES.providers = simpleList("Courier Providers", "Partner couriers you hand parcels to.", "Add Provider", "providers", [{ h: "Provider", r: (p) => h("span", { style: "display:inline-flex;align-items:center;gap:10px" }, h("span", { class: "logo-tile", style: `width:32px;height:32px;font-size:13px;background:${hue(p.name)}` }, initials(p.name)), p.name) }, { h: "Phone", r: (p) => p.phone || "–" },
   { h: "Website", r: (p) => (p.website && /^https?:\/\//.test(p.website) ? h("a", { href: p.website, target: "_blank", rel: "noopener noreferrer" }, p.website.replace(/^https?:\/\//, "")) : "–") }, { h: "Parcels", r: (p) => p.parcels }], openProviderForm, { name: (x) => x.name, empty: "No courier providers yet." });
 PAGES.areas = simpleList("Service Areas", "Cities where ZENTO COURIER delivers.", "Add Area", "areas", [{ h: "City", r: (a) => a.city }, { h: "Region", r: (a) => a.region || "–" }, { h: "Parcels delivered to", r: (a) => a.parcels }], openAreaForm,

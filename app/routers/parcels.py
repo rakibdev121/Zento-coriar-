@@ -1,11 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from app.config import get_settings
 from app.deps import CurrentUser, DbSession
 from app.models import Parcel, TrackingEvent
+from app.pdf import build_parcel_pdf
 from app.routers.pricing import quote_for
 from app.schemas import ParcelCreate, ParcelDetail, ParcelPage, ParcelStatus
 from app.tracking import generate_tracking_number
@@ -69,6 +71,13 @@ def list_parcels(
 @router.get("/{parcel_id}", response_model=ParcelDetail)
 def get_parcel(parcel_id: int, db: DbSession, user: CurrentUser):
     return _get_owned(db, user.id, parcel_id)
+
+
+@router.get("/{parcel_id}/pdf")
+def parcel_pdf(parcel_id: int, db: DbSession, user: CurrentUser):
+    p = _get_owned(db, user.id, parcel_id)
+    return Response(content=build_parcel_pdf(p, get_settings().currency, audience="customer"), media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{p.tracking_number}.pdf"', "Cache-Control": "no-store"})
 
 
 @router.post("/{parcel_id}/cancel", response_model=ParcelDetail)

@@ -105,6 +105,9 @@ td.wrap { white-space: normal; }
 .pill.booked { background: #2a3b5c; color: #c4d0ea; } .pill.picked_up { background: #6a2fc7; color: #fff; }
 .pill.in_transit { background: #7a4a0c; color: #ffd9a1; } .pill.out_for_delivery { background: #0b57d0; color: #fff; }
 .pill.delivered { background: #0e8a64; color: #fff; } .pill.cancelled { background: #7a1f2b; color: #ffc8cf; }
+.pill.pending { background: #7a4a0c; color: #ffd9a1; } .pill.approved { background: #0e8a64; color: #fff; } .pill.rejected { background: #7a1f2b; color: #ffc8cf; }
+.docs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin: 6px 0 16px; } .doc { margin: 0; } .doc img { width: 100%; max-height: 320px; object-fit: contain; background: #000; border: 1px solid var(--line-2); border-radius: 10px; display: block; } .doc figcaption { color: var(--muted); font-size: 12px; margin-top: 6px; }
+@media (max-width: 640px) { .docs { grid-template-columns: 1fr; } }
 .pill.on { background: rgba(20,195,142,.16); color: #4be0b3; } .pill.off { background: #2a3b5c; color: #aebbd6; }
 .btn { border: 1px solid var(--line-2); background: var(--card-2); border-radius: 8px; padding: 7px 14px; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 8px; }
 .btn:hover { border-color: var(--blue-2); }

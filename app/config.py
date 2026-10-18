@@ -1,4 +1,5 @@
 """Application settings, read from environment variables (or a local .env file)."""
+from decimal import Decimal
 from functools import lru_cache
 
 from pydantic import field_validator
@@ -17,6 +18,8 @@ class Settings(BaseSettings):
     admin_email: str = ""
     admin_password: str = ""
     admin_name: str = "Admin"
+    rider_commission_rate: Decimal = Decimal("0.20")  # share of the parcel price a rider earns on delivery
+    rider_daily_goal: Decimal = Decimal("2000")  # daily earnings goal shown in the rider app
 
     @field_validator("database_url")
     @classmethod
