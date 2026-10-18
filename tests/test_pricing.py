@@ -7,15 +7,15 @@ from app.pricing import PricingError, calculate_quote, chargeable_weight
 
 def test_base_price_for_one_kg():
     q = calculate_quote("local", "standard", "1")
-    assert q.total == Decimal("5.00")
+    assert q.total == Decimal("80.00")
     assert [l.code for l in q.lines] == ["base"]
 
 
 def test_extra_weight_is_rounded_up_to_half_kg():
-    # 2.1 kg -> 2.5 kg chargeable -> 1.5 kg extra x 1.50/kg regional
+    # 2.1 kg -> 2.5 kg chargeable -> 1.5 kg extra x 20/kg regional
     q = calculate_quote("regional", "standard", "2.1")
     assert q.chargeable_weight_kg == Decimal("2.5")
-    assert q.total == Decimal("8.00") + Decimal("2.25")
+    assert q.total == Decimal("120.00") + Decimal("30.00")
 
 
 def test_volumetric_weight_wins_when_larger():
@@ -25,18 +25,18 @@ def test_volumetric_weight_wins_when_larger():
 
 def test_express_multiplier_and_extras():
     q = calculate_quote("national", "express", "1", declared_value="200", fragile=True)
-    # base 12 * 1.5 = 18.00, fragile 2.00, insurance 1.5% of 200 = 3.00
-    assert q.total == Decimal("23.00")
+    # base 150 * 1.5 = 225.00, fragile 20.00, insurance 1.5% of 200 = 3.00 -> raised to the 10.00 minimum
+    assert q.total == Decimal("255.00")
     assert {l.code for l in q.lines} == {"base", "fragile", "insurance"}
 
 
 def test_insurance_has_minimum():
-    q = calculate_quote("local", "standard", "1", declared_value="10")
-    assert [l for l in q.lines if l.code == "insurance"][0].amount == Decimal("1.00")
+    q = calculate_quote("local", "standard", "1", declared_value="100")
+    assert [l for l in q.lines if l.code == "insurance"][0].amount == Decimal("10.00")
 
 
 def test_same_day_only_local():
-    assert calculate_quote("local", "same_day", "1").total == Decimal("11.00")
+    assert calculate_quote("local", "same_day", "1").total == Decimal("176.00")
     with pytest.raises(PricingError):
         calculate_quote("regional", "same_day", "1")
 

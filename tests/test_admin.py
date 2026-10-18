@@ -2,7 +2,7 @@ from sqlalchemy import select
 
 from app.database import SessionLocal
 from app.models import User
-from tests.conftest import USER, parcel_payload, register
+from tests.conftest import USER, fund, parcel_payload, register
 
 
 def make_admin(client, email="boss@example.com"):
@@ -14,6 +14,7 @@ def make_admin(client, email="boss@example.com"):
 
 
 def book(client, headers, **kw):
+    fund(client, headers, "10000")  # bookings are paid from the wallet
     r = client.post("/api/parcels", json=parcel_payload(**kw), headers=headers)
     assert r.status_code == 201, r.text
     return r.json()
@@ -92,6 +93,7 @@ def test_search_filter_and_csv_export(client, auth_headers):
 def test_admin_creates_booking_for_customer(client, auth_headers):
     admin = make_admin(client)
     cust = client.get("/api/admin/customers", headers=admin).json()["items"][0]
+    fund(client, auth_headers, "1000")  # the booking is paid from the customer's wallet
     r = client.post("/api/admin/bookings", headers=admin, json={**parcel_payload(), "user_id": cust["id"]})
     assert r.status_code == 201 and r.json()["customer_email"] == USER["email"]
     assert client.get("/api/admin/customers", headers=admin).json()["items"][0]["parcels"] == 1
@@ -117,7 +119,7 @@ def test_providers_areas_pricing_reports_notifications(client, auth_headers):
     assert client.get("/api/admin/areas", headers=admin).json()["items"][0]["city"] == "Dhaka"
     assert client.delete(f"/api/admin/areas/{area['id']}", headers=admin).status_code == 204
     pr = client.get("/api/admin/pricing", headers=admin).json()
-    assert pr["zones"][0]["id"] == "local" and pr["fees"]["fragile"] == "2.00"
+    assert pr["zones"][0]["id"] == "local" and pr["fees"]["fragile"] == "20.00"
     rep = client.get("/api/admin/reports", headers=admin, params={"days": 7}).json()
     assert rep["totals"]["parcels"] == 1 and len(rep["daily"]) == 7
     assert client.get("/api/admin/notifications", headers=admin).json()["items"]

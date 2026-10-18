@@ -14,6 +14,7 @@ from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from app import pricing as pricing_rules
+from app import wallet
 from app.config import get_settings
 from app.deps import CurrentAdmin, DbSession
 from app.models import ActivityLog, CourierProvider, Parcel, Rider, RiderDocument, ServiceArea, TrackingEvent, User
@@ -71,7 +72,7 @@ def _parcel_row(p: Parcel) -> dict:
         "id": p.id, "tracking_number": p.tracking_number, "status": p.status, "zone": p.zone, "service": p.service,
         "customer_name": p.user.full_name, "customer_email": p.user.email, "sender_name": p.sender_name,
         "recipient_name": p.recipient_name, "pickup_city": p.pickup_city, "delivery_city": p.delivery_city,
-        "price_total": str(p.price_total), "rider": {"id": p.rider.id, "name": p.rider.full_name} if p.rider else None,
+        "price_total": str(p.price_total), "cod_amount": str(p.cod_amount or 0), "rider": {"id": p.rider.id, "name": p.rider.full_name} if p.rider else None,
         "provider": {"id": p.provider.id, "name": p.provider.name} if p.provider else None,
         "eta": _eta(p), "created_at": _iso(p.created_at),
     }
@@ -279,6 +280,9 @@ def update_parcel(parcel_id: int, payload: ParcelUpdate, db: DbSession, admin: C
         p.events.append(TrackingEvent(status=new, note=(payload.note or "").strip() or DEFAULT_NOTES[new], location=(payload.location or "").strip() or None))
         if new == "delivered":
             settle_delivery(p)
+            wallet.settle_parcel_money(db, p)  # rider commission + COD to the customer, once
+        elif new == "cancelled":
+            wallet.refund_booking(db, p, "Booking cancelled by ZENTO")
         _log(db, "delivered" if new == "delivered" else "status", "Parcel Delivered" if new == "delivered" else "Status Updated",
              p.tracking_number if new == "delivered" else f"{p.tracking_number} · {new.replace('_', ' ')}")
     db.commit()

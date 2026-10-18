@@ -27,7 +27,7 @@ Phone = Annotated[str, StringConstraints(strip_whitespace=True, max_length=20)]
 
 def _check_phone(v: str) -> str:
     if not _PHONE_RE.match(v):
-        raise ValueError("Enter a valid phone number, for example +1 555 010 2030.")
+        raise ValueError("Enter a valid phone number, for example 01712345678.")
     return v
 
 
@@ -126,6 +126,8 @@ class ParcelCreate(QuoteRequest):
     delivery_address: Address
     delivery_city: City
     description: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] | None = None
+    # Cash on Delivery: the rider collects this from the recipient; after delivery it is credited to the sender's wallet.
+    cod_amount: Annotated[Decimal, Field(ge=0, le=500_000, max_digits=10, decimal_places=2)] = Decimal("0")
 
     _sp = field_validator("sender_phone")(_check_phone)
     _rp = field_validator("recipient_phone")(_check_phone)
@@ -155,6 +157,7 @@ class ParcelSummary(BaseModel):
     pickup_city: str
     delivery_city: str
     price_total: Decimal
+    cod_amount: Decimal = Decimal("0")
     created_at: datetime
 
 

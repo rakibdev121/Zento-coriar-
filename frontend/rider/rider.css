@@ -96,3 +96,8 @@ a { color: var(--o2); }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(110px + env(safe-area-inset-bottom)); background: #2a2a2d; border: 1px solid var(--line); padding: 12px 18px; border-radius: 14px; z-index: 80; max-width: 90%; text-align: center; }
 .toast.bad { border-color: var(--red); }
 .skel { height: 120px; border-radius: 18px; background: linear-gradient(90deg, #151516, #1f1f21, #151516); background-size: 200% 100%; animation: sh 1.2s infinite linear; margin-bottom: 12px; } @keyframes sh { to { background-position: -200% 0; } }
+
+.card.warn { background: rgba(255,138,31,.12); border-color: rgba(255,138,31,.5); } .card.warn b { display: block; margin-bottom: 4px; color: #ffb066; } .card.warn div { font-size: 13.5px; color: var(--muted, #b9b9c0); }
+.pill.cod { margin-left: 6px; background: rgba(255,138,31,.18); color: #ffb066; }
+.form-err { background: rgba(255,80,80,.12); border: 1px solid rgba(255,80,80,.45); color: #ff8f8f; padding: 10px 12px; border-radius: 12px; margin-bottom: 10px; font-size: 14px; }
+.sheet .field { margin-top: 10px; } .sheet select, .sheet input { width: 100%; }

@@ -14,7 +14,14 @@ class Settings(BaseSettings):
     secret_key: str
     access_token_expire_minutes: int = 720
     cors_origins: str = ""
-    currency: str = "USD"
+    currency: str = "BDT"  # shown as the taka sign in the apps
+    wallet_min_deposit: Decimal = Decimal("50")
+    wallet_min_withdraw: Decimal = Decimal("100")
+    # Where customers send money for a deposit (shown on the wallet page). Leave empty to hide a method.
+    pay_bkash: str = ""
+    pay_nagad: str = ""
+    pay_rocket: str = ""
+    pay_bank: str = ""
     admin_email: str = ""
     admin_password: str = ""
     admin_name: str = "Admin"

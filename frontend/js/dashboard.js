@@ -5,7 +5,7 @@ if (!requireAuth()) await new Promise(() => {}); // redirecting to sign in; stop
 renderChrome("dashboard.html");
 
 const PAGE_SIZE = 10;
-const state = { page: 1, status: "", currency: "USD" };
+const state = { page: 1, status: "", currency: "BDT" };
 const els = { stats: document.getElementById("stats"), list: document.getElementById("list"), pager: document.getElementById("pager"),
   filter: document.getElementById("filter"), detail: document.getElementById("detail") };
 
@@ -74,6 +74,7 @@ async function openDetail(id) {
         ...kv("Size", size), ...kv("Fragile", p.fragile ? "Yes" : "No"),
         ...kv("Insured for", money(p.declared_value, state.currency)),
         ...(p.description ? kv("Contents", p.description) : []),
+        ...(Number(p.cod_amount) > 0 ? kv("Cash on delivery", money(p.cod_amount)) : []),
         ...kv("Total", money(p.price_total, state.currency))),
       h("h3", {}, "Progress"), renderTimeline(p.events, p.status),
       h("div", { style: "margin-top:1.25rem;display:flex;gap:.6rem;flex-wrap:wrap" },
@@ -89,12 +90,12 @@ async function savePdf(p, btn) {
 }
 
 async function cancel(p, btn) {
-  if (!confirm(`Cancel ${p.tracking_number}? This cannot be undone.`)) return;
+  if (!confirm(`Cancel ${p.tracking_number}? The price goes back to your wallet.`)) return;
   btn.disabled = true;
   try {
     await api(`/parcels/${p.id}/cancel`, { method: "POST" });
     els.detail.close();
-    toast("Booking cancelled");
+    toast("Booking cancelled. The price is back in your wallet.");
     loadAll();
   } catch (err) { btn.disabled = false; toast(err.message); }
 }

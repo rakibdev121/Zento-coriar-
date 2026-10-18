@@ -20,6 +20,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"), server_default="0")  # wallet, in taka
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     parcels: Mapped[list["Parcel"]] = relationship(back_populates="user")
@@ -69,6 +70,13 @@ class Parcel(Base):
     rider_note: Mapped[str | None] = mapped_column(String(255), nullable=True)
     rider_commission: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Money: cash the rider collects from the recipient (Cash on Delivery) and one-time flags that keep payouts from repeating.
+    cod_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0"), server_default="0")
+    wallet_paid: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    refunded: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    commission_paid: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    cod_credited: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -158,4 +166,38 @@ class ActivityLog(Base):
     kind: Mapped[str] = mapped_column(String(30))
     title: Mapped[str] = mapped_column(String(80))
     detail: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class WalletRequest(Base):
+    """A deposit, withdrawal or rider COD hand-in that an admin approves or rejects."""
+    __tablename__ = "wallet_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True)
+    kind: Mapped[str] = mapped_column(String(12))  # deposit | withdraw | cod_deposit
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    method: Mapped[str] = mapped_column(String(12))
+    account: Mapped[str] = mapped_column(String(40))
+    reference: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    status: Mapped[str] = mapped_column(String(10), default="pending", server_default="pending", index=True)
+    admin_note: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped[User] = relationship(lazy="joined")
+
+
+class WalletTransaction(Base):
+    """Ledger line: every change to a wallet balance is written here (amount is signed)."""
+    __tablename__ = "wallet_transactions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    balance_after: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    note: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    parcel_id: Mapped[int | None] = mapped_column(ForeignKey("parcels.id", ondelete="SET NULL"), nullable=True)
+    request_id: Mapped[int | None] = mapped_column(ForeignKey("wallet_requests.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)

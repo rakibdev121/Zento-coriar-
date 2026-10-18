@@ -7,7 +7,7 @@ Rules
 * Each zone has a base fee that covers the first 1 kg, plus a per-kg rate beyond that.
 * The service level multiplies base + weight charges.
 * Fragile handling is a flat fee; insurance is a percentage of declared value.
-All money is Decimal, rounded half-up to cents.
+All money is Decimal taka (BDT), rounded half-up to 2 places.
 """
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
@@ -18,16 +18,16 @@ VOLUMETRIC_DIVISOR = Decimal("5000")
 
 MAX_WEIGHT_KG = Decimal("30")
 MAX_DIMENSION_CM = 150
-MAX_DECLARED_VALUE = Decimal("5000")
+MAX_DECLARED_VALUE = Decimal("100000")
 
-FRAGILE_FEE = Decimal("2.00")
+FRAGILE_FEE = Decimal("20.00")
 INSURANCE_RATE = Decimal("0.015")
-INSURANCE_MIN = Decimal("1.00")
+INSURANCE_MIN = Decimal("10.00")
 
 ZONES = {
-    "local": {"label": "Local", "description": "Within the same city", "base": Decimal("5.00"), "per_kg": Decimal("1.00")},
-    "regional": {"label": "Regional", "description": "Between nearby cities", "base": Decimal("8.00"), "per_kg": Decimal("1.50")},
-    "national": {"label": "National", "description": "Anywhere in the country", "base": Decimal("12.00"), "per_kg": Decimal("2.25")},
+    "local": {"label": "Local", "description": "Within the same city", "base": Decimal("80.00"), "per_kg": Decimal("15.00")},
+    "regional": {"label": "Regional", "description": "Between nearby cities", "base": Decimal("120.00"), "per_kg": Decimal("20.00")},
+    "national": {"label": "National", "description": "Anywhere in the country", "base": Decimal("150.00"), "per_kg": Decimal("25.00")},
 }
 
 SERVICES = {

@@ -23,6 +23,7 @@ function s(tag, attrs = {}, ...kids) {
   return el;
 }
 const ICONS = {
+  wallet: "M3 7a2 2 0 012-2h12v4M3 7v11a2 2 0 002 2h14a1 1 0 001-1v-9a1 1 0 00-1-1H5a2 2 0 01-2-2zM16 14.5h.01",
   home: "M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10", box: "M21 8l-9-5-9 5v8l9 5 9-5V8zM3 8l9 5 9-5M12 13v8",
   calendar: "M5 5h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2zM3 10h18M8 3v4M16 3v4", user: "M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0",
   bike: "M5.5 18a3.5 3.5 0 100-7 3.5 3.5 0 000 7zM18.5 18a3.5 3.5 0 100-7 3.5 3.5 0 000 7zM12 18l-3-7h6l3 7M9 11l-1-3H6",
@@ -39,11 +40,11 @@ const icon = (n, size) => s("svg", { class: "ic", viewBox: "0 0 24 24", "aria-hi
 /* ---------- formatting ---------- */
 const STATUS = { booked: "Pending", picked_up: "Picked Up", in_transit: "In Transit", out_for_delivery: "Out for Delivery", delivered: "Delivered", cancelled: "Cancelled" };
 const pill = (st) => h("span", { class: `pill ${st}` }, STATUS[st] || st);
-let CURRENCY = "USD";
-function money(v, cur = CURRENCY) {
-  const n = Number(v);
-  for (const loc of ["en-BD", "en"]) { try { return new Intl.NumberFormat(loc, { style: "currency", currency: cur }).format(n); } catch { /* try next */ } }
-  return `${cur} ${n.toFixed(2)}`;
+let CURRENCY = "BDT";
+/** Money is always shown in taka: \u09F3 1,234.50 */
+function money(v) {
+  const n = Number(v) || 0;
+  return `\u09F3${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 const dShort = (iso) => new Date(iso + (iso.length === 10 ? "T00:00:00" : "")).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 const dLong = (iso) => new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
@@ -189,7 +190,7 @@ function liveMap(live) {
 }
 
 /* ---------- shell ---------- */
-const NAV = [["dashboard", "Dashboard", "home"], ["parcels", "Parcels", "box"], ["bookings", "Bookings", "calendar"], ["customers", "Customers", "user"], ["riders", "Riders", "bike"],
+const NAV = [["dashboard", "Dashboard", "home"], ["parcels", "Parcels", "box"], ["bookings", "Bookings", "calendar"], ["customers", "Customers", "user"], ["riders", "Riders", "bike"], ["wallet", "Wallet", "wallet"],
   ["providers", "Courier Providers", "truck"], ["pricing", "Delivery Pricing", "tag"], ["areas", "Service Areas", "pin"], ["reports", "Reports", "chart"], ["notifications", "Notifications", "bell"], ["settings", "Settings", "gear"]];
 const logo = () => s("svg", { width: 46, height: 44, viewBox: "0 0 46 44", "aria-hidden": "true" }, s("defs", {}, s("linearGradient", { id: "zl", x1: 0, y1: 0, x2: 1, y2: 1 }, s("stop", { offset: "0", "stop-color": "#35c4ff" }), s("stop", { offset: "1", "stop-color": "#2b5df6" }))), s("path", { d: "M4 3h38v9L19 31h23v10H4v-9l23-19H4z", fill: "url(#zl)" }));
 const brand = () => h("div", { class: "brand" }, logo(), h("div", {}, h("b", {}, "ZENTO"), h("small", {}, "COURIER")));
@@ -300,7 +301,7 @@ function openAreaForm(a, done) {
 function openBookingForm(done) {
   const errs = {}, box = FORM_BOX(), quoteBox = h("div", { class: "form-ok", hidden: true }), mk = (type = "text", extra = {}) => h("input", { type, ...extra });
   const f = { sender_name: mk(), sender_phone: mk("tel"), pickup_address: mk(), pickup_city: mk(), recipient_name: mk(), recipient_phone: mk("tel"), delivery_address: mk(), delivery_city: mk(),
-    weight_kg: mk("number", { step: "0.01", min: "0.01" }), length_cm: mk("number", { min: 1 }), width_cm: mk("number", { min: 1 }), height_cm: mk("number", { min: 1 }), declared_value: mk("number", { min: 0, step: "0.01" }), description: mk() };
+    weight_kg: mk("number", { step: "0.01", min: "0.01" }), length_cm: mk("number", { min: 1 }), width_cm: mk("number", { min: 1 }), height_cm: mk("number", { min: 1 }), declared_value: mk("number", { min: 0, step: "0.01" }), description: mk(), cod_amount: mk("number", { min: 0, step: "0.01", value: "0" }) };
   const zone = h("select", {}, ZONES.map(([k, l]) => opt(k, l))), service = h("select", {}, SERVICES.map(([k, l]) => opt(k, l))), fragile = h("input", { type: "checkbox" });
   const cq = h("input", { type: "search", placeholder: "Search customers by name, email or phone" }), cs = h("select", {}, opt("", "Search above, then choose…")); let people = [];
   const loadPeople = debounce(async () => {
@@ -312,7 +313,7 @@ function openBookingForm(done) {
   const num = (el) => (el.value.trim() === "" ? undefined : Number(el.value)), str = (el) => el.value.trim();
   const body = () => ({ user_id: Number(cs.value) || undefined, sender_name: str(f.sender_name), sender_phone: str(f.sender_phone), pickup_address: str(f.pickup_address), pickup_city: str(f.pickup_city), recipient_name: str(f.recipient_name),
     recipient_phone: str(f.recipient_phone), delivery_address: str(f.delivery_address), delivery_city: str(f.delivery_city), zone: zone.value, service: service.value, weight_kg: str(f.weight_kg),
-    length_cm: num(f.length_cm), width_cm: num(f.width_cm), height_cm: num(f.height_cm), declared_value: str(f.declared_value) || "0", fragile: fragile.checked, description: str(f.description) || null });
+    length_cm: num(f.length_cm), width_cm: num(f.width_cm), height_cm: num(f.height_cm), declared_value: str(f.declared_value) || "0", fragile: fragile.checked, description: str(f.description) || null, cod_amount: str(f.cod_amount) || "0" });
   const qbtn = h("button", { class: "btn", type: "button", onclick: () => run(qbtn, box, errs, async () => {
     const b = body(), q = await api("/pricing/quote", { method: "POST", auth: false, body: { zone: b.zone, service: b.service, weight_kg: b.weight_kg, length_cm: b.length_cm, width_cm: b.width_cm, height_cm: b.height_cm, declared_value: b.declared_value, fragile: b.fragile } });
     quoteBox.hidden = false; quoteBox.textContent = `Estimated price ${money(q.total, q.currency)} · ${q.chargeable_weight_kg} kg chargeable · ETA ${q.eta_max_days === 0 ? "same day" : `${q.eta_min_days}–${q.eta_max_days} day(s)`}`;
@@ -331,6 +332,7 @@ function openBookingForm(done) {
     h("div", { class: "three" }, fld("Zone", zone, errs, "zone"), fld("Service", service, errs, "service"), fld("Weight (kg)", f.weight_kg, errs, "weight_kg")),
     h("div", { class: "three" }, fld("Length (cm)", f.length_cm, errs, "length_cm"), fld("Width (cm)", f.width_cm, errs, "width_cm"), fld("Height (cm)", f.height_cm, errs, "height_cm")),
     h("div", { class: "two" }, fld("Declared value", f.declared_value, errs, "declared_value"), fld("Description (optional)", f.description, errs, "description")),
+    fld("Cash on Delivery amount (\u09F3, the price is taken from the customer wallet)", f.cod_amount, errs, "cod_amount"),
     h("label", { class: "check" }, fragile, "Fragile handling"), quoteBox, h("div", { class: "actions" }, qbtn, btn)), { wide: true });
 }
 
@@ -350,7 +352,7 @@ async function openParcel(id, changed) {
         h("button", { class: "btn sm", type: "button", onclick: async (e) => { const b = e.currentTarget; b.disabled = true; try { await downloadPdf(`/admin/parcels/${id}/pdf`, `${p.tracking_number}.pdf`); } catch (err) { toast(err.message, true); } finally { b.disabled = false; } } }, icon("download", 14), "PDF"))),
       h("div", { class: "kv" }, kv("Customer", `${p.customer_name} · ${p.customer_email}`), kv("Price", money(p.price_total)), kv("Sender", `${p.sender_name} · ${p.sender_phone}`), kv("Recipient", `${p.recipient_name} · ${p.recipient_phone}`),
         kv("Pickup", `${p.pickup_address}, ${p.pickup_city}`), kv("Delivery", `${p.delivery_address}, ${p.delivery_city}`), kv("Service", `${p.zone} · ${p.service.replace("_", " ")}`),
-        kv("Weight", `${p.weight_kg} kg (chargeable ${p.chargeable_weight_kg} kg)`), kv("Declared value", money(p.declared_value)), kv("ETA", etaLabel(p.eta)), p.description && kv("Contents", p.description), p.fragile && kv("Handling", "Fragile"),
+        kv("Weight", `${p.weight_kg} kg (chargeable ${p.chargeable_weight_kg} kg)`), kv("Declared value", money(p.declared_value)), Number(p.cod_amount) > 0 && kv("Cash on delivery", money(p.cod_amount)), kv("ETA", etaLabel(p.eta)), p.description && kv("Contents", p.description), p.fragile && kv("Handling", "Fragile"),
         p.rider_response && kv("Rider response", { pending: "Waiting for the rider to accept", accepted: "Accepted by the rider", rejected: p.rider_note || "Rejected by the rider" }[p.rider_response]),
         !p.rider_response && p.rider_note && kv("Last rider response", p.rider_note), p.rider_commission && kv("Rider commission", money(p.rider_commission))),
       h("div", { class: "muted", style: "margin-bottom:6px" }, p.price_breakdown.map((l) => `${l.label}: ${money(l.amount)}`).join("  ·  ")), h("hr"),
@@ -552,6 +554,80 @@ PAGES.settings = async (ctx) => {
 
 /* ---------- boot ---------- */
 let pollTimer;
+
+/* ---------- wallet ---------- */
+const REQ_LABEL = { deposit: "Deposit", withdraw: "Withdrawal", cod_deposit: "COD hand-in" };
+const METHOD_LABEL = { bkash: "bKash", nagad: "Nagad", rocket: "Rocket", bank: "Bank", cash: "Cash" };
+const TXN_LABEL = { deposit: "Deposit", booking: "Booking", refund: "Refund", cod: "COD received", commission: "Commission", withdrawal: "Withdrawal", withdrawal_refund: "Withdrawal returned", adjustment: "Adjustment" };
+
+function openRejectForm(r, done) {
+  const errs = {}, box = FORM_BOX(), reason = h("input", { placeholder: "Reason shown to the user (for example: TrxID not found)" }), btn = h("button", { class: "btn danger", type: "submit" }, "Reject request");
+  const m = modal(`Reject ${REQ_LABEL[r.kind].toLowerCase()}`, h("form", { class: "form", onsubmit: (e) => { e.preventDefault(); run(btn, box, errs, async () => {
+    await api(`/admin/wallet/requests/${r.id}/reject`, { method: "POST", body: { reason: reason.value.trim() } }); m.close(); toast(r.kind === "withdraw" ? "Rejected, the money went back to the wallet" : "Rejected"); done(); }); } },
+    box, h("p", { class: "muted" }, `${r.user.full_name} \u00B7 ${money(r.amount)}`), fld("Reason", reason, errs, "reason"), h("div", { class: "form-actions" }, btn)));
+}
+
+function openAdjustForm(u, done) {
+  const errs = {}, box = FORM_BOX(), amt = h("input", { type: "number", step: "0.01", placeholder: "500 adds, -200 removes" }), note = h("input", { placeholder: "Why? (saved in the wallet history)" }), btn = h("button", { class: "btn primary", type: "submit" }, "Save adjustment");
+  const m = modal(`Adjust wallet: ${u.full_name}`, h("form", { class: "form", onsubmit: (e) => { e.preventDefault(); run(btn, box, errs, async () => {
+    await api(`/admin/wallet/users/${u.id}/adjust`, { method: "POST", body: { amount: amt.value.trim(), note: note.value.trim() } }); m.close(); toast("Wallet updated"); done(); }); } },
+    box, h("p", { class: "muted" }, `Current balance ${money(u.balance)}`), fld("Amount (\u09F3)", amt, errs, "amount"), fld("Reason", note, errs, "note"), h("div", { class: "form-actions" }, btn)));
+}
+
+function openCodReceive(u, done) {
+  const errs = {}, box = FORM_BOX(), amt = h("input", { type: "number", step: "0.01", min: "0.01", value: u.cod_due }), btn = h("button", { class: "btn primary", type: "submit" }, "Accept cash");
+  const m = modal(`Accept COD cash: ${u.full_name}`, h("form", { class: "form", onsubmit: (e) => { e.preventDefault(); run(btn, box, errs, async () => {
+    await api(`/admin/wallet/riders/${u.id}/cod-receive`, { method: "POST", body: { amount: amt.value.trim() } }); m.close(); toast("COD cash accepted, withdrawal limit updated"); done(); }); } },
+    box, h("p", { class: "muted" }, `This rider still owes ${money(u.cod_due)} of Cash on Delivery money.`), fld("Cash received (\u09F3)", amt, errs, "amount"), h("div", { class: "form-actions" }, btn)));
+}
+
+async function openUserHistory(u) {
+  const t = await api(`/admin/wallet/users/${u.id}/transactions?page_size=50`);
+  modal(`Wallet history: ${u.full_name}`, h("div", {}, h("p", { class: "muted" }, `Balance ${money(u.balance)}` + (Number(u.cod_due) > 0 ? ` \u00B7 COD owed ${money(u.cod_due)}` : "")),
+    table([{ h: "Date", r: (x) => dLong(x.created_at) }, { h: "What", wrap: true, r: (x) => h("span", {}, TXN_LABEL[x.kind] || x.kind, x.note ? h("small", { class: "muted", style: "display:block" }, x.note) : null) },
+      { h: "Amount", r: (x) => h("span", { class: "num" }, `${Number(x.amount) < 0 ? "-" : "+"}${money(Math.abs(x.amount))}`) }, { h: "Balance", r: (x) => h("span", { class: "num" }, money(x.balance_after)) }], t.items, "No wallet activity yet.")), { wide: true });
+}
+
+PAGES.wallet = async (ctx) => {
+  const sumEl = h("div", { class: "stats" }), tabsEl = h("div", { class: "toolbar" }), listEl = h("div");
+  const st = { tab: "deposit", page: 1, q: "", role: "all" }, size = 15;
+  const stat = (l, v, hint) => h("div", { class: "card stat" }, h("div", {}, h("div", { class: "lbl" }, l), h("div", { class: "val num" }, v), hint ? h("div", { class: "tr" }, hint) : null));
+
+  async function loadSummary() {
+    const s = await api("/admin/wallet/summary"); if (ctx.stale()) return;
+    sumEl.replaceChildren(stat("Money in wallets", money(s.in_wallets), "ZENTO owes this to customers and riders"), stat("COD cash with riders", money(s.cod_with_riders), "Riders must hand this in"),
+      stat("Deposits approved", money(s.deposits_approved)), stat("Withdrawals paid", money(s.withdrawals_paid)));
+    return s.pending;
+  }
+  async function load() {
+    const pending = await loadSummary(); if (ctx.stale()) return;
+    const tabs = [["deposit", `Deposits (${pending?.deposit ?? 0})`], ["withdraw", `Withdrawals (${pending?.withdraw ?? 0})`], ["cod_deposit", `COD hand-ins (${pending?.cod_deposit ?? 0})`], ["users", "Wallets"]];
+    tabsEl.replaceChildren(...tabs.map(([k, l]) => h("button", { class: "btn sm" + (st.tab === k ? " primary" : ""), type: "button", onclick: () => { st.tab = k; st.page = 1; load(); } }, l)));
+    if (st.tab === "users") return loadUsers();
+    const r = await api(`/admin/wallet/requests?kind=${st.tab}&status=pending&page=${st.page}&page_size=${size}`); if (ctx.stale()) return;
+    const how = { deposit: "Check the TrxID in your bKash/Nagad/Rocket/bank first, then approve. Approving adds the money to the customer wallet.", withdraw: "The money is already on hold. Send it to the number below, then press Mark paid. Reject to give it back.", cod_deposit: "Approve only after you received the cash or payment. This lowers what the rider owes." }[st.tab];
+    listEl.replaceChildren(h("p", { class: "muted", style: "margin-bottom:10px" }, how), table([
+      { h: "Date", r: (x) => dLong(x.created_at) }, { h: "Who", wrap: true, r: (x) => h("span", {}, x.user.full_name, h("small", { class: "muted", style: "display:block" }, x.user.phone)) },
+      { h: "Amount", r: (x) => h("b", { class: "num" }, money(x.amount)) }, { h: st.tab === "withdraw" ? "Send to" : "Paid with", wrap: true, r: (x) => h("span", {}, `${METHOD_LABEL[x.method] || x.method}: ${x.account}`, x.reference ? h("small", { class: "muted", style: "display:block" }, `TrxID ${x.reference}`) : null) },
+      { h: "Action", r: (x) => h("div", { class: "toolbar", style: "margin:0;flex-wrap:nowrap" },
+        h("button", { class: "btn sm primary", onclick: async (e) => { e.currentTarget.disabled = true; try { await api(`/admin/wallet/requests/${x.id}/approve`, { method: "POST" }); toast(st.tab === "withdraw" ? "Marked as paid" : "Approved"); load(); } catch (er) { toast(er.message, true); load(); } } }, st.tab === "withdraw" ? "Mark paid" : "Approve"),
+        h("button", { class: "btn sm danger", onclick: () => openRejectForm(x, load) }, "Reject")) }], r.items, "No pending requests."), pager(st.page, size, r.total, (n) => { st.page = n; load(); }));
+  }
+  async function loadUsers() {
+    const r = await api(`/admin/wallet/users?role=${st.role}&q=${encodeURIComponent(st.q)}&page=${st.page}&page_size=${size}`); if (ctx.stale()) return;
+    const qIn = h("input", { type: "search", class: "grow", placeholder: "Search by name, email or phone", value: st.q }), role = h("select", {}, [["all", "Everyone"], ["customer", "Customers"], ["rider", "Riders"]].map(([v, l]) => opt(v, l, st.role === v)));
+    const go = () => { st.q = qIn.value.trim(); st.role = role.value; st.page = 1; loadUsers(); };
+    qIn.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); }); role.addEventListener("change", go);
+    listEl.replaceChildren(h("div", { class: "toolbar" }, qIn, role, h("button", { class: "btn sm", onclick: go }, "Search")), table([
+      { h: "Name", wrap: true, r: (u) => h("span", {}, u.full_name, h("small", { class: "muted", style: "display:block" }, u.email)) }, { h: "Type", r: (u) => (u.is_rider ? "Rider" : "Customer") },
+      { h: "Balance", r: (u) => h("b", { class: "num" }, money(u.balance)) }, { h: "COD owed", r: (u) => (Number(u.cod_due) > 0 ? h("b", { class: "num", style: "color:#ff9f43" }, money(u.cod_due)) : "\u2013") },
+      { h: "Actions", r: (u) => h("div", { class: "toolbar", style: "margin:0;flex-wrap:nowrap" }, h("button", { class: "btn sm", onclick: () => openUserHistory(u) }, "History"), h("button", { class: "btn sm", onclick: () => openAdjustForm(u, load) }, "Adjust"),
+        u.is_rider && Number(u.cod_due) > 0 ? h("button", { class: "btn sm primary", onclick: () => openCodReceive(u, load) }, "Receive COD") : null) }], r.items, "No wallets found."), pager(st.page, size, r.total, (n) => { st.page = n; loadUsers(); }));
+  }
+  ctx.el.replaceChildren(pageHead("Wallet", "Approve deposits and withdrawals, collect rider COD cash and correct balances."), sumEl, h("div", { class: "card", style: "margin-top:16px" }, tabsEl, listEl));
+  await load();
+};
+
 function start() { shell(); if (!location.hash) location.hash = "#/dashboard"; route(); pollNotifications(); clearInterval(pollTimer); pollTimer = setInterval(pollNotifications, 60000); }
 (async () => {
   if (!getToken()) return renderLogin();

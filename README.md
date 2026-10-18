@@ -4,7 +4,7 @@ Courier delivery web app: public website, customer accounts, parcel booking with
 
 **Stack:** FastAPI + SQLAlchemy 2 + Alembic + PostgreSQL (Supabase-ready) on the back end; plain HTML, CSS and vanilla JavaScript (ES modules) on the front end. No Node.js is needed to run anything. FastAPI serves the API under `/api` and the static site from `frontend/`, so one process is enough.
 
-**Admin panel:** served at `/admin`. **Rider app:** served at `/rider` (phone-first). **Not built yet:** payments, rider withdrawals/payouts, editable pricing rules.
+**Admin panel:** served at `/admin`. **Rider app:** served at `/rider` (phone-first). **Wallet, COD and payouts:** built (see *Wallet and Cash on Delivery* below). **Android apps:** see `android/README.md`. **Not built yet:** online payment gateway (deposits are checked by an admin), editable pricing rules.
 
 ## Quick start
 
@@ -41,7 +41,9 @@ Supabase enables Row Level Security on tables created through its dashboard. Tab
 | `SECRET_KEY` | yes | 32+ characters; signs login tokens. The app refuses to start without it |
 | `ENVIRONMENT` | no | `development` (default) or `production`. Production hides `/api/docs` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | no | Default 720 (12 h) |
-| `CURRENCY` | no | ISO code shown in prices, default `USD` |
+| `CURRENCY` | no | Default `BDT`. All prices are shown with the taka sign |
+| `WALLET_MIN_DEPOSIT`, `WALLET_MIN_WITHDRAW` | no | Smallest deposit (default 50) and withdrawal (default 100), in taka |
+| `PAY_BKASH`, `PAY_NAGAD`, `PAY_ROCKET`, `PAY_BANK` | no | Where customers send deposit money. Shown on the wallet page; empty = hidden |
 | `CORS_ORIGINS` | no | Comma-separated. Only needed if the frontend is hosted on a different origin |
 | `RIDER_COMMISSION_RATE` | no | Share of the parcel price a rider earns on delivery, default `0.20` |
 | `RIDER_DAILY_GOAL` | no | Daily earnings goal shown in the rider app, default `2000` |
@@ -65,6 +67,30 @@ Notes: *Recent Activities* and *Notifications* combine new bookings, new custome
 5. **Commission:** when the parcel is delivered (by the rider or by an admin) the rider earns `RIDER_COMMISSION_RATE` of the parcel price (default `0.20` = 20%), stored on the parcel as `rider_commission`. The wallet shows the total earned, today's earnings against `RIDER_DAILY_GOAL` (default 2000) and the delivery streak.
 
 Riders added by hand with *Add Rider* have no login; they are approved straight away and assigned without the accept/reject step, as before.
+
+## Wallet and Cash on Delivery
+
+All money is in taka (the taka sign in the apps; `Tk` in PDFs because the PDF fonts have no taka glyph).
+
+**Customer**
+* **Deposit:** the customer sends money to your bKash/Nagad/Rocket/bank number (set `PAY_*`), then submits amount + TrxID on *Wallet*. Nothing is added until an admin approves it in `/admin` -> *Wallet* -> *Deposits*. The same TrxID cannot be used twice.
+* **Booking:** the price is taken from the wallet when the parcel is booked. Not enough balance = no booking, with a message saying how much to deposit. Cancelling (customer, or admin) refunds the price once.
+* **Cash on Delivery:** the customer can enter a COD amount when booking. The rider collects it from the receiver; when the parcel is *delivered* the amount is credited to the customer's wallet.
+* **Withdraw:** the amount leaves the balance at once (on hold). The admin sends the money and presses *Mark paid*, or rejects it and the money returns.
+
+**Rider**
+* Commission (default 20%) is credited to the rider's wallet on delivery.
+* **COD rule:** COD cash a rider collected is owed to ZENTO. The rider can only withdraw `balance - COD owed`. Example: owes 500 COD, wallet 1000 -> can withdraw 500, the other 500 is locked until the rider hands in the cash and an admin accepts it (rider *Wallet* tab -> *Hand in COD*, or admin *Wallet* -> *Receive COD*).
+
+**Admin** (`/admin` -> *Wallet*): money in wallets, COD cash with riders, approve/reject deposits, withdrawals and COD hand-ins, wallet list with history, manual adjustments (always with a written reason; they appear in the user's history).
+
+Every balance change is a line in `wallet_transactions`; booking, refund, commission and COD are paid once only (flags on the parcel). Balances are locked per user (`SELECT ... FOR UPDATE`) so two requests cannot spend the same money. Run `alembic upgrade head` (migration `0004`) after deploying.
+
+New API: `/api/wallet` (overview), `/api/wallet/transactions`, `POST /api/wallet/deposit|withdraw|cod-deposit`, and `/api/admin/wallet/*`.
+
+## Android apps
+
+Three apps (website, admin, rider) are built by GitHub Actions: see `android/README.md`.
 
 ## Parcel PDF
 
@@ -106,7 +132,7 @@ Validation errors return `422` as `{"detail": "...", "errors": [{"field": "...",
 
 ## Pricing rules (`app/pricing.py`)
 
-Chargeable weight is the larger of actual and volumetric weight (L x W x H / 5000), rounded up to 0.5 kg. Each zone has a base fee covering the first kilogram plus a per-kg rate after that (local 5.00 + 1.00/kg, regional 8.00 + 1.50/kg, national 12.00 + 2.25/kg). Express is x1.5 and same-day (local zone only) x2.2. Fragile handling is a flat 2.00. Insurance is 1.5% of declared value, minimum 1.00. Limits: 30 kg, 150 cm per side, 5000 declared value. **These rates are placeholders; change the constants at the top of `app/pricing.py` and the tests accordingly.**
+Chargeable weight is the larger of actual and volumetric weight (L x W x H / 5000), rounded up to 0.5 kg. Each zone has a base fee covering the first kilogram plus a per-kg rate after that (local 80 + 15/kg, regional 120 + 20/kg, national 150 + 25/kg, in taka). Express is x1.5 and same-day (local zone only) x2.2. Fragile handling is a flat 20. Insurance is 1.5% of declared value, minimum 10. Limits: 30 kg, 150 cm per side, 100000 declared value. **These rates are placeholders; change the constants at the top of `app/pricing.py` and the tests accordingly.**
 
 ## Project layout
 

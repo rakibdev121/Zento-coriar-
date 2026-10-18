@@ -52,7 +52,8 @@ def _p(value, style="body") -> Paragraph:
 
 
 def _money(amount, currency: str) -> str:
-    return f"{currency} {Decimal(str(amount)):,.2f}"
+    label = "Tk" if currency.upper() == "BDT" else currency  # the PDF fonts have no taka sign
+    return f"{label} {Decimal(str(amount)):,.2f}"
 
 
 def _when(dt: datetime | None) -> str:
@@ -117,6 +118,8 @@ def build_parcel_pdf(p, currency: str, audience: str = "customer") -> bytes:
     left = [("Service", f"{p.zone.title()} / {p.service.replace('_', ' ').title()}"), ("Weight", f"{p.weight_kg} kg (charged {p.chargeable_weight_kg} kg)"),
             ("Size", size), ("Fragile", "Yes" if p.fragile else "No")]
     right = [("Declared value", _money(p.declared_value, currency)), ("Contents", p.description or "-")]
+    if p.cod_amount and Decimal(str(p.cod_amount)) > 0:
+        right.append(("Cash on delivery", _money(p.cod_amount, currency)))
     if p.rider and (admin or p.rider_response in (None, "accepted")):  # customers see the rider only once they have accepted
         right.append(("Rider", p.rider.full_name + (f" ({p.rider.phone})" if admin else "")))
     if admin:

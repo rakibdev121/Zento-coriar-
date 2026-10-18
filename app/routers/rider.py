@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, StringConstraints, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from app import wallet
 from app.config import get_settings
 from app.deps import CurrentUser, DbSession
 from app.models import ActivityLog, Parcel, Rider, RiderDocument, TrackingEvent, User
@@ -131,7 +132,7 @@ def _parcel_out(p: Parcel) -> dict:
         "id": p.id, "tracking_number": p.tracking_number, "status": p.status, "rider_response": p.rider_response, "service": p.service,
         "zone": p.zone, "weight_kg": str(p.weight_kg), "fragile": p.fragile, "description": p.description,
         "pickup_address": p.pickup_address, "pickup_city": p.pickup_city, "delivery_address": p.delivery_address, "delivery_city": p.delivery_city,
-        "price_total": str(p.price_total),
+        "price_total": str(p.price_total), "cod_amount": str(p.cod_amount or 0),
         "commission": str(p.rider_commission if p.rider_commission is not None else commission_for(p.price_total)),
         "assigned_at": _iso(p.rider_assigned_at), "delivered_at": _iso(p.delivered_at), "created_at": _iso(p.created_at), "contact": None,
     }
@@ -221,6 +222,7 @@ def update_status(parcel_id: int, payload: StatusIn, rider: ApprovedRider, db: D
     p.events.append(TrackingEvent(status=payload.status, note=payload.note or STEP_NOTE[payload.status], location=place))
     if payload.status == "delivered":
         settle_delivery(p)
+        wallet.settle_parcel_money(db, p)  # commission into the rider wallet, COD into the customer wallet
         _log(db, "delivered", "Parcel Delivered", p.tracking_number)
     else:
         _log(db, "status", "Status Updated", f"{p.tracking_number} · {payload.status.replace('_', ' ')}")
@@ -253,13 +255,18 @@ def _rate_percent() -> int:
     return int((get_settings().rider_commission_rate * 100).to_integral_value())
 
 
+def _wallet_out(db, user) -> dict:
+    """Wallet balance, the COD cash still owed to ZENTO and what may be withdrawn now."""
+    return {**wallet.snapshot(db, user), "pending_cod_deposit": str(wallet.pending_cod_deposits(db, user.id))}
+
+
 @router.get("/dashboard")
-def dashboard(rider: ApprovedRider, db: DbSession):
+def dashboard(rider: ApprovedRider, user: CurrentUser, db: DbSession):
     settings, e = get_settings(), _earnings(db, rider)
     goal = settings.rider_daily_goal
     active = _open_parcels(db, rider, "accepted")
     return {
-        "currency": settings.currency, "rate_percent": _rate_percent(), "balance": str(e["total"]), "today": str(e["today"]), "goal": str(goal),
+        "currency": settings.currency, "rate_percent": _rate_percent(), "balance": str(e["total"]), "wallet": _wallet_out(db, user), "today": str(e["today"]), "goal": str(goal),
         "goal_percent": 0 if goal <= 0 else min(100, int(e["today"] / goal * 100)), "streak": e["streak"], "delivered_count": e["delivered"],
         "active": [_parcel_out(p) for p in active], "requests": [_parcel_out(p) for p in _open_parcels(db, rider, "pending")],
     }

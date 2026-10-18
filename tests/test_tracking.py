@@ -1,7 +1,8 @@
-from tests.conftest import parcel_payload
+from tests.conftest import fund, parcel_payload
 
 
 def test_public_tracking_hides_personal_details(client, auth_headers):
+    fund(client, auth_headers, "1000")
     p = client.post("/api/parcels", json=parcel_payload(), headers=auth_headers).json()
     r = client.get(f"/api/track/{p['tracking_number'].lower()}")  # case-insensitive, no auth
     assert r.status_code == 200

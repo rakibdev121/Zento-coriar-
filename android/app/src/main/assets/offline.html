@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offline</title>
+<style>
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b1220;color:#fff;font-family:system-ui,sans-serif;text-align:center;padding:24px;box-sizing:border-box}
+  h1{font-size:22px;margin:0 0 8px} p{color:#b6c0d4;margin:0 0 22px;line-height:1.5}
+  button{background:#ff6a00;color:#fff;border:0;border-radius:12px;padding:14px 28px;font-size:16px;font-weight:600}
+</style></head>
+<body><div>
+  <h1>No connection</h1>
+  <p>ZENTO could not reach the server.<br>Check your internet and try again.<br><small>ইন্টারনেট চেক করে আবার চেষ্টা করুন</small></p>
+  <button onclick="retry()">Try again</button>
+</div>
+<script>
+  function retry(){ if (window.ZentoBridge) ZentoBridge.retry(); }
+  window.addEventListener('online', retry);
+</script></body></html>

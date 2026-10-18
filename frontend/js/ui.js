@@ -19,9 +19,10 @@ export const STATUS_LABEL = {
 };
 export const statusBadge = (s) => h("span", { class: `badge ${s}` }, STATUS_LABEL[s] || s);
 
-export function money(amount, currency = "USD") {
-  const n = Number(amount);
-  try { return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(n); } catch { return `${currency} ${n.toFixed(2)}`; }
+/** Money is always shown in taka: \u09F3 1,234.50 (the currency argument is kept only so old calls keep working). */
+export function money(amount, _currency) {
+  const n = Number(amount) || 0;
+  return `\u09F3${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 export const fmtDateTime = (iso) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 export const fmtDate = (iso) => new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" });
@@ -39,7 +40,7 @@ export function renderChrome(active) {
   const link = (href, label) => h("a", { href, "aria-current": href === active ? "page" : null }, label);
   const nav = h("nav", { class: "nav", id: "site-nav", "aria-label": "Main" },
     link("pricing.html", "Prices"), link("track.html", "Track a parcel"), h("a", { href: "/rider" }, "Ride with us"),
-    signedIn ? [link("book.html", "Book a parcel"), link("dashboard.html", "My parcels"),
+    signedIn ? [link("book.html", "Book a parcel"), link("dashboard.html", "My parcels"), link("wallet.html", "Wallet"),
       h("button", { class: "btn btn-ghost btn-sm", type: "button", onclick: signOut }, "Sign out")]
       : [link("login.html", "Sign in"), h("a", { class: "btn btn-primary btn-sm", href: "register.html" }, "Create account")]);
   const logo = h("a", { class: "logo", href: "index.html", "aria-label": "ZENTO COURIER home" });

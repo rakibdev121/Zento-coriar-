@@ -1,0 +1,80 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Address of your deployed ZENTO server, for example https://zento.onrender.com (no trailing slash).
+// Set it with the ZENTO_BASE_URL environment variable (GitHub: Settings > Secrets and variables > Actions > Variables)
+// or with -PZENTO_BASE_URL=... on the command line.
+def baseUrl = (findProperty('ZENTO_BASE_URL') ?: System.getenv('ZENTO_BASE_URL') ?: 'https://example.com').trim()
+while (baseUrl.endsWith('/')) { baseUrl = baseUrl.substring(0, baseUrl.length() - 1) }
+def runNumber = (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+
+// Optional release signing. Without these variables the APK is signed with the debug key, which is fine for installing
+// directly on phones but cannot be used to update a Play Store app. See android/README.md.
+def ksPath = System.getenv('KEYSTORE_PATH')
+
+android {
+    namespace 'com.zento.courier'
+    compileSdk 34
+
+    defaultConfig {
+        minSdk 24
+        targetSdk 34
+        versionCode runNumber
+        versionName "1.0.${runNumber}"
+        buildConfigField 'String', 'BASE_URL', "\"${baseUrl}\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    signingConfigs {
+        if (ksPath) {
+            release {
+                storeFile file(ksPath)
+                storePassword System.getenv('KEYSTORE_PASSWORD')
+                keyAlias System.getenv('KEY_ALIAS')
+                keyPassword System.getenv('KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig ksPath ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    flavorDimensions 'app'
+    productFlavors {
+        website {
+            dimension 'app'
+            applicationId 'com.zento.courier'
+            resValue 'string', 'app_name', 'ZENTO Courier'
+            buildConfigField 'String', 'START_PATH', '"/"'
+        }
+        admin {
+            dimension 'app'
+            applicationId 'com.zento.courier.admin'
+            resValue 'string', 'app_name', 'ZENTO Admin'
+            buildConfigField 'String', 'START_PATH', '"/admin"'
+        }
+        rider {
+            dimension 'app'
+            applicationId 'com.zento.courier.rider'
+            resValue 'string', 'app_name', 'ZENTO Rider'
+            buildConfigField 'String', 'START_PATH', '"/rider"'
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+}

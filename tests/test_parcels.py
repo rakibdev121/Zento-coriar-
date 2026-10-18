@@ -1,13 +1,14 @@
-from tests.conftest import parcel_payload, register
+from tests.conftest import fund, parcel_payload, register
 
 
 def book(client, headers, **overrides):
+    fund(client, headers, "10000")  # bookings are paid from the wallet
     return client.post("/api/parcels", json=parcel_payload(**overrides), headers=headers)
 
 
 def test_quote_endpoint_is_public_and_validates(client):
     ok = client.post("/api/pricing/quote", json={"zone": "local", "service": "standard", "weight_kg": "1"})
-    assert ok.status_code == 200 and ok.json()["total"] == "5.00" and ok.json()["currency"] == "USD"
+    assert ok.status_code == 200 and ok.json()["total"] == "80.00" and ok.json()["currency"] == "BDT"
     bad = client.post("/api/pricing/quote", json={"zone": "regional", "service": "same_day", "weight_kg": "1"})
     assert bad.status_code == 422
     assert client.post("/api/pricing/quote", json={"zone": "local", "service": "standard", "weight_kg": "99"}).status_code == 422
@@ -27,8 +28,8 @@ def test_booking_creates_parcel_with_server_side_price(client, auth_headers):
     assert r.status_code == 201
     p = r.json()
     assert p["tracking_number"].startswith("ZNT") and p["status"] == "booked"
-    # base 5.00 + extra 1.5kg * 1.00 + fragile 2.00 + insurance 1.50 = 10.00
-    assert p["price_total"] == "10.00"
+    # base 80 + extra 1.5 kg x 15 + fragile 20 + insurance (1.5% of 100 = 1.50, minimum 10) = 132.50
+    assert p["price_total"] == "132.50"
     assert [e["status"] for e in p["events"]] == ["booked"]
 
 
@@ -40,7 +41,7 @@ def test_booking_validation(client, auth_headers):
 
 def test_extra_client_supplied_price_is_ignored(client, auth_headers):
     p = book(client, auth_headers, price_total="0.01").json()
-    assert p["price_total"] == "10.00"
+    assert p["price_total"] == "132.50"
 
 
 def test_list_get_and_isolation_between_users(client, auth_headers):
@@ -78,4 +79,4 @@ def test_dashboard_summary(client, auth_headers):
     client.post(f"/api/parcels/{a['id']}/cancel", headers=auth_headers)
     s = client.get("/api/dashboard/summary", headers=auth_headers).json()
     assert (s["total_parcels"], s["in_progress"], s["cancelled"], s["delivered"]) == (2, 1, 1, 0)
-    assert s["total_spent"] == "10.00" and len(s["recent"]) == 2
+    assert s["total_spent"] == "132.50" and len(s["recent"]) == 2

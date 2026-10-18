@@ -3,13 +3,16 @@ import os
 # Must be set before the app is imported. In-memory SQLite keeps tests fast and self-contained.
 os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["SECRET_KEY"] = "test-secret-key-test-secret-key-0123456789"
-os.environ["CURRENCY"] = "USD"
+os.environ["CURRENCY"] = "BDT"
 os.environ["ENVIRONMENT"] = "test"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app.database import Base, engine  # noqa: E402
+from decimal import Decimal  # noqa: E402
+
+from app.database import Base, SessionLocal, engine  # noqa: E402
+from app.models import User  # noqa: E402
 from app.main import app  # noqa: E402
 from app.security import login_limiter  # noqa: E402
 
@@ -50,3 +53,20 @@ def parcel_payload(**overrides):
         "zone": "local", "service": "standard", "weight_kg": "2.5", "declared_value": "100", "fragile": True,
     }
     return {**base, **overrides}
+
+
+def set_balance(client, headers, amount) -> None:
+    """Put an exact wallet balance on the signed-in account (test shortcut, no ledger line)."""
+    uid = client.get("/api/auth/me", headers=headers).json()["id"]
+    with SessionLocal() as db:
+        db.get(User, uid).balance = Decimal(str(amount))
+        db.commit()
+
+
+def fund(client, headers, amount) -> None:
+    """Add money to the signed-in account's wallet (test shortcut for an approved deposit)."""
+    uid = client.get("/api/auth/me", headers=headers).json()["id"]
+    with SessionLocal() as db:
+        u = db.get(User, uid)
+        u.balance = Decimal(str(u.balance)) + Decimal(str(amount))
+        db.commit()

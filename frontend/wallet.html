@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<title>My wallet | ZENTO COURIER</title>
+<meta name="description" content="Deposit, withdraw and see your ZENTO COURIER wallet.">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png"><link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header" id="site-header"></header>
+<main id="main">
+<div class="shell page">
+  <div class="page-head"><h1 style="font-size:clamp(2rem,5vw,3rem)">My wallet</h1><p class="muted">Bookings are paid from your wallet. Deposit first, then book.</p></div>
+  <div id="wallet-root" aria-live="polite"></div>
+</div>
+</main>
+<footer class="site-footer" id="site-footer"></footer>
+<noscript><p class="shell" style="padding:1rem">ZENTO COURIER needs JavaScript to run. Please enable it and reload.</p></noscript>
+<script type="module" src="js/wallet.js"></script>
+</body>
+</html>

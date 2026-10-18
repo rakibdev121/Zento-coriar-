@@ -1,5 +1,5 @@
 import { api, requireAuth, getUser, clearSession } from "./api.js";
-import { renderChrome, h, field, clearErrors, showErrors, setBusy, formData } from "./ui.js";
+import { renderChrome, h, field, clearErrors, showErrors, setBusy, formData, money } from "./ui.js";
 import { loadOptions, renderChoices, watchQuote, renderQuote } from "./quote.js";
 
 if (!requireAuth()) await new Promise(() => {}); // redirecting to sign in; stop this module quietly
@@ -28,9 +28,11 @@ document.getElementById("parcel").replaceChildren(
   h("p", { class: "hint", style: "margin-top:-.5rem" }, "Size is optional. Bulky parcels are charged on size when that is more than their weight."),
   field({ name: "declared_value", label: "Value to insure", type: "number", required: false, attrs: { min: 0, step: "0.01", inputmode: "decimal", value: "0" } }),
   field({ name: "description", label: "What is inside?", required: false, attrs: { maxlength: 200 } }),
+  field({ name: "cod_amount", label: "Cash on Delivery amount (\u09F3)", required: false, attrs: { min: 0, step: "0.01", inputmode: "decimal", value: "0" },
+    hint: "Leave 0 if the receiver pays nothing. If you enter an amount, our rider collects it from the receiver and it goes to your wallet after delivery." }),
   h("label", { class: "check" }, h("input", { type: "checkbox", name: "fragile" }), "This parcel is fragile"));
 
-let currency = "USD";
+let currency = "BDT";
 try {
   const opts = await loadOptions();
   currency = opts.currency;
@@ -43,8 +45,20 @@ try {
 }
 watchQuote(form, panel, currency, () => formData(form));
 
+// Wallet balance: the booking price is taken from it at once.
+const walletBox = h("div", { class: "notice", id: "wallet-box" }, "Checking your wallet\u2026");
+form.insertBefore(walletBox, form.querySelector("button[type=submit]"));
+async function showWallet() {
+  try {
+    const w = await api("/wallet");
+    walletBox.replaceChildren(`Wallet balance: ${money(w.balance)}. The booking price is taken from it. `, h("a", { href: "wallet.html" }, "Deposit money"));
+  } catch { walletBox.hidden = true; }
+}
+showWallet();
+
 function payload() {
   const d = formData(form);
+  d.cod_amount = d.cod_amount || "0";
   for (const k of ["length_cm", "width_cm", "height_cm"]) d[k] = d[k] === "" ? null : Number(d[k]);
   d.declared_value = d.declared_value || "0";
   d.description = d.description || null;
@@ -64,6 +78,7 @@ form.addEventListener("submit", async (e) => {
       h("h1", { style: "font-size:2rem" }, "Booking confirmed"),
       h("p", { class: "muted" }, "Your tracking number"),
       h("span", { class: "tracking-no" }, p.tracking_number),
+      h("p", {}, `${money(p.price_total)} was taken from your wallet.` + (Number(p.cod_amount) > 0 ? ` The rider will collect ${money(p.cod_amount)} from the receiver and it will be added to your wallet after delivery.` : "")),
       h("p", {}, "Keep this number. Anyone with it can follow the parcel."),
       h("div", { class: "hero-actions", style: "justify-content:center" },
         h("a", { class: "btn btn-primary", href: "dashboard.html" }, "View my parcels"),

@@ -1,7 +1,7 @@
 // ZENTO COURIER rider app. Vanilla ES module, no build step. All server data is rendered through textContent / DOM nodes (never innerHTML).
 const TOKEN_KEY = "zento.rider.token";
 const $app = document.getElementById("app");
-const state = { me: null, dash: null, tab: "home", orders: "requests", currency: "USD", rate: 20, photo: null, timer: null, rid: 0 };
+const state = { me: null, dash: null, tab: "home", orders: "requests", currency: "BDT", rate: 20, photo: null, timer: null, rid: 0 };
 
 /* ---------- DOM + icons ---------- */
 function h(tag, props = {}, ...kids) {
@@ -29,10 +29,10 @@ const icon = (n, cls = "") => { const s = document.createElementNS(NS, "svg"); s
   const p = document.createElementNS(NS, "path"); p.setAttribute("d", PATHS[n]); s.append(p); return s; };
 
 /* ---------- formatting ---------- */
-const SYM = { BDT: "\u09F3", USD: "$", EUR: "\u20AC", GBP: "\u00A3", INR: "\u20B9" };
+/** Money is always shown in taka: \u09F3 1,234.50 */
 function money(v) {
-  const n = Number(v);
-  return (SYM[state.currency] ?? `${state.currency} `) + n.toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 });
+  const n = Number(v) || 0;
+  return "\u09F3" + n.toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 });
 }
 const initials = (n) => (n || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 const STATUS = { booked: "Go to pickup", picked_up: "Picked up", in_transit: "In transit", out_for_delivery: "Out for delivery", delivered: "Delivered", cancelled: "Cancelled" };
@@ -168,7 +168,7 @@ function renderApp() {
   const view = h("div", { class: "view" }); state.view = view;
   const tabBtn = (id, label, ic, cls = "") => h("button", { class: `${cls} ${state.tab === id ? "on" : ""}`.trim(), "data-tab": id, onclick: () => (id === "go" ? go() : show(id)) },
     id === "go" ? h("span", { class: "disc" }, icon(ic)) : icon(ic), label);
-  $app.replaceChildren(h("div", { class: "app" }, view), h("div", { class: "nav" }, h("nav", { "aria-label": "Main" }, tabBtn("home", "Home", "home"), tabBtn("orders", "Orders", "box"), tabBtn("go", "Go", "bike", "go"), tabBtn("earnings", "Earnings", "wallet"), tabBtn("profile", "Profile", "user"))));
+  $app.replaceChildren(h("div", { class: "app" }, view), h("div", { class: "nav" }, h("nav", { "aria-label": "Main" }, tabBtn("home", "Home", "home"), tabBtn("orders", "Orders", "box"), tabBtn("go", "Go", "bike", "go"), tabBtn("earnings", "Wallet", "wallet"), tabBtn("profile", "Profile", "user"))));
   show(state.tab);
   stop(); state.timer = setInterval(() => { if (!document.hidden && !document.querySelector(".sheet-ov") && ["home", "orders"].includes(state.tab)) show(state.tab, true); }, 30000);
 }
@@ -218,7 +218,7 @@ function openSheet(p) {
     h("div", { class: "grab" }), h("div", { class: "row", style: "justify-content:space-between" }, h("h2", { class: "mono" }, p.tracking_number), pill(p)),
     h("div", { class: "route" }, stop_("box", "Pickup", p.pickup_address, p.pickup_city), stop_("pin", "Drop", p.delivery_address, p.delivery_city)),
     h("div", { class: "kv" }, kv("Service", `${p.zone} \u00B7 ${p.service.replace("_", " ")}`), kv("Weight", `${Number(p.weight_kg)} kg`), p.fragile && kv("Handling", "Fragile"), p.description && kv("Contents", p.description),
-      kv("Parcel value", money(p.price_total)), kv(`Your commission (${state.rate}%)`, money(p.commission)),
+      kv("Parcel value", money(p.price_total)), Number(p.cod_amount) > 0 && kv("Collect cash (COD)", h("b", { style: "color:#ff8a1f" }, money(p.cod_amount))), kv(`Your commission (${state.rate}%)`, money(p.commission)),
       c && kv("Sender", h("span", {}, c.sender_name, " \u00B7 ", phoneLink(c.sender_phone))), c && kv("Recipient", h("span", {}, c.recipient_name, " \u00B7 ", phoneLink(c.recipient_phone))),
       !c && open && kv("Contacts", "Shown after you accept"), p.delivered_at && kv("Delivered", fmtWhen(p.delivered_at))),
     actions, h("div", { class: "actions" }, h("button", { class: "btn ghost", onclick: closeSheet }, "Close"))));
@@ -229,8 +229,8 @@ function openSheet(p) {
 async function homeView() {
   const d = await api("/rider/dashboard"); state.dash = d; state.currency = d.currency; state.rate = d.rate_percent;
   const first = state.me.full_name.split(" ")[0], act = d.active[0];
-  const wallet = h("div", { class: "card wallet" }, icon("wallet", "deco"), h("div", { class: "lbl" }, icon("wallet"), "My Wallet"), h("div", { class: "small" }, "Commission earned"), h("div", { class: "amt num" }, money(d.balance)),
-    h("div", { class: "note" }, `You earn ${d.rate_percent}% of every delivered parcel`));
+  const wallet = h("div", { class: "card wallet" }, icon("wallet", "deco"), h("div", { class: "lbl" }, icon("wallet"), "My Wallet"), h("div", { class: "small" }, "Wallet balance"), h("div", { class: "amt num" }, money(d.wallet.balance)),
+    h("div", { class: "note" }, Number(d.wallet.cod_due) > 0 ? `COD cash to hand in: ${money(d.wallet.cod_due)}. You can withdraw ${money(d.wallet.withdrawable)}` : `You earn ${d.rate_percent}% of every delivered parcel`));
   const goal = h("div", { class: "card" }, h("div", { class: "row" }, h("div", { class: "badge-ic" }, icon("chart")), h("div", {}, h("div", { class: "muted" }, "Today's Earnings"), h("div", { class: "big num" }, money(d.today), " ", h("small", {}, `/ ${money(d.goal)}`))),
     h("div", { class: "goal" }, `${d.goal_percent}%`, h("small", {}, "Goal"))),
     h("div", { class: "bar" }, h("i", { style: `width:${d.goal_percent}%` }), h("b", { style: `left:${d.goal_percent}%` })),
@@ -251,16 +251,56 @@ async function ordersView() {
   const seg = h("div", { class: "seg" }, tabs.map(([k, l]) => h("button", { class: state.orders === k ? "on" : "", onclick: () => { state.orders = k; show("orders"); } }, l)));
   const empty = { requests: "No new requests.", active: "No active deliveries.", history: "No finished deliveries yet." }[state.orders];
   const list = r.items.length ? h("div", { class: "card list" }, r.items.map((p) => h("button", { class: "item", onclick: () => openSheet(p) }, h("div", { class: "badge-ic" }, icon("box")),
-    h("div", { class: "grow" }, h("b", { class: "mono" }, p.tracking_number), h("small", {}, `${p.pickup_city} \u2192 ${p.delivery_city}`), h("div", { style: "margin-top:6px" }, pill(p))), h("div", { class: "amt-sm num" }, money(p.commission), h("small", {}, p.status === "delivered" ? "earned" : "you earn"))))) : h("div", { class: "card empty" }, empty);
+    h("div", { class: "grow" }, h("b", { class: "mono" }, p.tracking_number), h("small", {}, `${p.pickup_city} \u2192 ${p.delivery_city}`), h("div", { style: "margin-top:6px" }, pill(p), Number(p.cod_amount) > 0 ? h("span", { class: "pill cod" }, `COD ${money(p.cod_amount)}`) : null)), h("div", { class: "amt-sm num" }, money(p.commission), h("small", {}, p.status === "delivered" ? "earned" : "you earn"))))) : h("div", { class: "card empty" }, empty);
   return [h("h1", { class: "title", style: "margin-bottom:12px" }, "Orders"), seg, list];
 }
+/* ---------- wallet: withdraw and COD hand-in ---------- */
+const METHODS = { bkash: "bKash", nagad: "Nagad", rocket: "Rocket", bank: "Bank", cash: "Cash (office)" };
+const KINDS = { deposit: "Deposit", booking: "Booking", refund: "Refund", cod: "COD received", commission: "Commission", withdrawal: "Withdrawal", withdrawal_refund: "Withdrawal returned", adjustment: "Adjustment" };
+function openMoneySheet(kind, w) {
+  closeSheet();
+  const handIn = kind === "cod_deposit", errs = {}, banner = h("div", { class: "form-err", hidden: true });
+  const amount = h("input", { type: "number", inputmode: "decimal", step: "0.01", min: "1", value: handIn ? Math.max(0, Number(w.cod_due) - Number(w.pending_cod_deposit)) || "" : "" });
+  const method = h("select", {}, (handIn ? ["cash", "bkash", "nagad", "rocket", "bank"] : ["bkash", "nagad", "rocket", "bank"]).map((k) => h("option", { value: k }, METHODS[k])));
+  const account = h("input", { placeholder: handIn ? "office (for cash) or your bKash/Nagad number" : "01XXXXXXXXX", value: handIn ? "office" : "", maxlength: "40" });
+  const reference = h("input", { placeholder: "Transaction ID (not needed for cash)", maxlength: "60" });
+  method.addEventListener("change", () => { if (handIn) account.value = method.value === "cash" ? "office" : ""; });
+  const go = h("button", { class: "btn", type: "submit" }, handIn ? "Send hand-in request" : "Request withdrawal");
+  const ov = h("div", { class: "sheet-ov", onclick: (e) => { if (e.target === ov) closeSheet(); } }, h("form", { class: "sheet", novalidate: true, onsubmit: async (e) => {
+    e.preventDefault(); banner.hidden = true; setBusy(go, true, "Sending\u2026");
+    try {
+      await api(handIn ? "/wallet/cod-deposit" : "/wallet/withdraw", { method: "POST", body: { amount: amount.value, method: method.value, account: account.value, reference: reference.value || null } });
+      closeSheet(); toast(handIn ? "Sent. Your limit opens when the admin accepts the cash." : "Withdrawal requested. It is on hold until paid."); refresh();
+    } catch (err) { showErrors(banner, errs, err); setBusy(go, false); }
+  } }, h("div", { class: "grab" }), h("h2", {}, handIn ? "Hand in COD cash" : "Withdraw money"),
+    h("p", { class: "muted" }, handIn ? `You owe ${money(w.cod_due)} of customers' COD money. Give it to the ZENTO office or send it by bKash/Nagad, then report it here.` : `You can withdraw up to ${money(w.withdrawable)}.`),
+    banner, fld("Amount (\u09F3)", amount, errs, "amount"), fld(handIn ? "How did you hand it in?" : "Send my money to", method, errs, "method"),
+    fld(handIn ? "Account" : "My bKash / Nagad / Rocket number or bank account", account, errs, "account"), fld("Transaction ID", reference, errs, "reference"),
+    h("div", { class: "actions" }, go, h("button", { class: "btn ghost", type: "button", onclick: closeSheet }, "Close"))));
+  document.body.append(ov);
+}
+
 async function earningsView() {
-  const e = await api("/rider/earnings"); state.currency = e.currency; state.rate = e.rate_percent;
+  const [e, w] = await Promise.all([api("/rider/earnings"), api("/wallet")]); state.currency = e.currency; state.rate = e.rate_percent;
+  const due = Number(w.cod_due) > 0;
+  const walletCard = h("div", { class: "card wallet" }, icon("wallet", "deco"), h("div", { class: "lbl" }, icon("wallet"), "My Wallet"), h("div", { class: "amt num" }, money(w.balance)),
+    h("div", { class: "note" }, `Withdrawable now: ${money(w.withdrawable)}`));
+  const lockNote = due ? h("div", { class: "card warn" }, h("b", {}, `Hand in ${money(w.cod_due)} COD cash first`),
+    h("div", {}, `You collected this money from receivers. ${money(w.locked)} of your wallet is locked until the admin accepts it.` + (Number(w.pending_cod_deposit) > 0 ? ` ${money(w.pending_cod_deposit)} is waiting for approval.` : ""))) : null;
+  const buttons = h("div", { class: "tiles" }, h("button", { class: "btn", onclick: () => openMoneySheet("withdraw", w) }, "Withdraw"),
+    due ? h("button", { class: "btn ghost", onclick: () => openMoneySheet("cod_deposit", w) }, "Hand in COD") : h("button", { class: "btn ghost", onclick: () => toast("You have no COD cash to hand in.") }, "Hand in COD"));
+  const reqs = w.requests.slice(0, 8), hist = w.transactions.slice(0, 15);
+  const reqList = reqs.length ? h("div", { class: "card list" }, reqs.map((r) => h("div", { class: "item" }, h("div", { class: "grow" }, h("b", {}, `${{ withdraw: "Withdrawal", cod_deposit: "COD hand-in", deposit: "Deposit" }[r.kind] || r.kind} \u00B7 ${money(r.amount)}`),
+    h("small", {}, `${METHODS[r.method] || r.method} \u00B7 ${fmtWhen(r.created_at)}${r.admin_note ? ` \u00B7 ${r.admin_note}` : ""}`)), h("span", { class: "pill" + (r.status === "approved" ? " good" : r.status === "rejected" ? " bad" : "") }, r.status)))) : null;
+  const txnList = hist.length ? h("div", { class: "card list" }, hist.map((t) => h("div", { class: "item" }, h("div", { class: "grow" }, h("b", {}, KINDS[t.kind] || t.kind), h("small", {}, `${t.note || ""} ${fmtWhen(t.created_at)}`.trim())),
+    h("div", { class: "amt-sm num" }, `${Number(t.amount) < 0 ? "-" : "+"}${money(Math.abs(t.amount))}`, h("small", {}, money(t.balance_after)))))) : null;
   const tile = (l, v, hot) => h("div", { class: "tile" + (hot ? " hot" : "") }, h("small", {}, l), h("b", { class: "num" }, money(v)));
-  return [h("h1", { class: "title", style: "margin-bottom:12px" }, "Earnings"), h("div", { class: "tiles" }, tile("Today", e.today, true), tile("Last 7 days", e.week), tile("This month", e.month), tile("All time", e.total)),
+  return [h("h1", { class: "title", style: "margin-bottom:12px" }, "Wallet"), walletCard, lockNote, buttons, reqs.length ? h("div", { class: "section" }, h("span", {}, "Withdrawal and hand-in requests")) : null, reqList,
+    h("div", { class: "section" }, h("span", {}, "Earnings")), h("div", { class: "tiles" }, tile("Today", e.today, true), tile("Last 7 days", e.week), tile("This month", e.month), tile("All time", e.total)),
     h("p", { class: "muted" }, `You earn ${e.rate_percent}% of the parcel price on every delivery. ${e.delivered} deliveries so far.`), h("div", { class: "section" }, h("span", {}, "Delivered parcels")),
     e.items.length ? h("div", { class: "card list" }, e.items.map((i) => h("div", { class: "item" }, h("div", { class: "badge-ic dark" }, icon("check")), h("div", { class: "grow" }, h("b", { class: "mono" }, i.tracking_number), h("small", {}, fmtWhen(i.delivered_at))),
-      h("div", { class: "amt-sm num" }, `+${money(i.commission)}`, h("small", {}, `of ${money(i.price_total)}`))))) : h("div", { class: "card empty" }, "Your commissions will show up here after your first delivery.")];
+      h("div", { class: "amt-sm num" }, `+${money(i.commission)}`, h("small", {}, `of ${money(i.price_total)}`))))) : h("div", { class: "card empty" }, "Your commissions will show up here after your first delivery."),
+    txnList ? h("div", { class: "section" }, h("span", {}, "Wallet history")) : null, txnList].filter(Boolean);
 }
 async function profileView() {
   const m = state.me = await api("/rider/me"), kv = (k, v) => h("div", {}, h("span", {}, k), h("span", {}, v || "\u2013"));

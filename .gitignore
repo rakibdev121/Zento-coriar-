@@ -19,3 +19,12 @@ htmlcov/
 .DS_Store
 .idea/
 .vscode/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/keystore/*.jks
+android/keystore/*.keystore
+*.jks

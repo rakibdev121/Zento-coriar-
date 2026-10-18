@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from app import wallet
 from app.config import get_settings
 from app.deps import CurrentUser, DbSession
 from app.models import Parcel, TrackingEvent
@@ -23,8 +24,12 @@ def _get_owned(db, user_id: int, parcel_id: int) -> Parcel:
 
 
 def create_parcel_record(db, user_id: int, payload: ParcelCreate) -> Parcel:
-    """Price server-side, store the parcel and its first tracking event. Shared with the admin panel."""
+    """Price server-side, take the price from the customer's wallet, store the parcel and its first tracking event.
+
+    Shared with the admin panel. Money and parcel are saved in one transaction: no wallet balance, no parcel.
+    """
     q = quote_for(payload)
+    wallet.ensure_funds(wallet.lock_user(db, user_id), q.total)  # fail fast with a clear message
     breakdown = [{"code": l.code, "label": l.label, "amount": str(l.amount)} for l in q.lines]
     fields = payload.model_dump(exclude={"zone", "service"})
     for _ in range(5):  # retry on the (very unlikely) tracking-number collision
@@ -35,11 +40,14 @@ def create_parcel_record(db, user_id: int, payload: ParcelCreate) -> Parcel:
         parcel.events.append(TrackingEvent(status="booked", note="Booking confirmed. Waiting for pickup.", location=payload.pickup_city))
         db.add(parcel)
         try:
+            db.flush()
+            wallet.charge_booking(db, wallet.lock_user(db, user_id), parcel)
             db.commit()
             db.refresh(parcel)
             return parcel
         except IntegrityError:
             db.rollback()
+    db.rollback()
     raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Could not create the booking. Please try again.")
 
 
@@ -87,6 +95,7 @@ def cancel_parcel(parcel_id: int, db: DbSession, user: CurrentUser):
         raise HTTPException(status.HTTP_409_CONFLICT, "Only parcels that have not been picked up can be cancelled.")
     parcel.status = "cancelled"
     parcel.events.append(TrackingEvent(status="cancelled", note="Cancelled by the customer.", location=None))
+    wallet.refund_booking(db, parcel)
     db.commit()
     db.refresh(parcel)
     return parcel

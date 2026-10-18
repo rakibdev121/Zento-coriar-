@@ -1,0 +1,73 @@
+name: Build Android apps
+
+# Builds three installable APKs (website, admin, rider) that open your deployed ZENTO server.
+# Run it from the Actions tab (Run workflow) or push a change under android/.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "android/**"
+      - ".github/workflows/android.yml"
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      # Settings > Secrets and variables > Actions > Variables > New repository variable: ZENTO_BASE_URL = https://your-site.example.com
+      ZENTO_BASE_URL: ${{ vars.ZENTO_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the server address is set
+        run: |
+          if [ -z "$ZENTO_BASE_URL" ]; then
+            echo "::error::Set the repository variable ZENTO_BASE_URL (for example https://zento.onrender.com). See android/README.md."
+            exit 1
+          fi
+          case "$ZENTO_BASE_URL" in https://*) ;; *) echo "::error::ZENTO_BASE_URL must start with https://"; exit 1;; esac
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Release keystore (optional)
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/zento.jks"
+            echo "KEYSTORE_PATH=$RUNNER_TEMP/zento.jks" >> "$GITHUB_ENV"
+          else
+            echo "No keystore secret: the APKs will be signed with the debug key (fine for installing on phones)."
+          fi
+
+      - name: Build the three APKs
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: gradle -p android assembleWebsiteRelease assembleAdminRelease assembleRiderRelease --no-daemon --stacktrace
+
+      - name: Collect APKs
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/website/release/*.apk dist/zento-website.apk
+          cp android/app/build/outputs/apk/admin/release/*.apk   dist/zento-admin.apk
+          cp android/app/build/outputs/apk/rider/release/*.apk   dist/zento-rider.apk
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zento-apks
+          path: dist/*.apk
+          if-no-files-found: error

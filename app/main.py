@@ -13,7 +13,7 @@ from sqlalchemy import text
 from app.config import get_settings
 from app.database import SessionLocal
 from app.bootstrap import ensure_admin
-from app.routers import admin, auth, dashboard, parcels, pricing, rider, tracking
+from app.routers import admin, admin_wallet, auth, dashboard, parcels, pricing, rider, tracking, wallet
 
 log = logging.getLogger("zento")
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
@@ -72,7 +72,7 @@ def create_app() -> FastAPI:
             db.execute(text("SELECT 1"))
         return {"status": "ok"}
 
-    for module in (auth, pricing, parcels, tracking, dashboard, admin, rider):
+    for module in (auth, pricing, parcels, tracking, dashboard, admin, admin_wallet, rider, wallet):
         app.include_router(module.router, prefix="/api")
 
     @app.get("/admin", include_in_schema=False)
