@@ -20,15 +20,14 @@ def _get_owned(db, user_id: int, parcel_id: int) -> Parcel:
     return parcel
 
 
-@router.post("", response_model=ParcelDetail, status_code=status.HTTP_201_CREATED)
-def create_parcel(payload: ParcelCreate, db: DbSession, user: CurrentUser):
-    # Price is always recomputed server-side; the client's quote is only a preview.
+def create_parcel_record(db, user_id: int, payload: ParcelCreate) -> Parcel:
+    """Price server-side, store the parcel and its first tracking event. Shared with the admin panel."""
     q = quote_for(payload)
     breakdown = [{"code": l.code, "label": l.label, "amount": str(l.amount)} for l in q.lines]
     fields = payload.model_dump(exclude={"zone", "service"})
     for _ in range(5):  # retry on the (very unlikely) tracking-number collision
         parcel = Parcel(
-            user_id=user.id, tracking_number=generate_tracking_number(), zone=payload.zone, service=payload.service,
+            user_id=user_id, tracking_number=generate_tracking_number(), zone=payload.zone, service=payload.service,
             chargeable_weight_kg=q.chargeable_weight_kg, price_total=q.total, price_breakdown=breakdown, **fields,
         )
         parcel.events.append(TrackingEvent(status="booked", note="Booking confirmed. Waiting for pickup.", location=payload.pickup_city))
@@ -40,6 +39,12 @@ def create_parcel(payload: ParcelCreate, db: DbSession, user: CurrentUser):
         except IntegrityError:
             db.rollback()
     raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Could not create the booking. Please try again.")
+
+
+@router.post("", response_model=ParcelDetail, status_code=status.HTTP_201_CREATED)
+def create_parcel(payload: ParcelCreate, db: DbSession, user: CurrentUser):
+    # Price is always recomputed server-side; the client's quote is only a preview.
+    return create_parcel_record(db, user.id, payload)
 
 
 @router.get("", response_model=ParcelPage)

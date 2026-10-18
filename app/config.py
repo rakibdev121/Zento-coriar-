@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 720
     cors_origins: str = ""
     currency: str = "USD"
+    admin_email: str = ""
+    admin_password: str = ""
+    admin_name: str = "Admin"
 
     @field_validator("database_url")
     @classmethod

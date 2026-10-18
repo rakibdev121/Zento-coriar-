@@ -1,25 +1,36 @@
 """ZENTO COURIER API + static frontend."""
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.config import get_settings
 from app.database import SessionLocal
-from app.routers import auth, dashboard, parcels, pricing, tracking
+from app.bootstrap import ensure_admin
+from app.routers import admin, auth, dashboard, parcels, pricing, tracking
 
 log = logging.getLogger("zento")
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    try:
+        ensure_admin()
+    except Exception:  # never block startup (e.g. migrations not applied yet)
+        log.exception("Admin bootstrap failed")
+    yield
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(
+    app = FastAPI(lifespan=lifespan,
         title="ZENTO COURIER API", version="1.0.0",
         docs_url=None if settings.is_production else "/api/docs",
         redoc_url=None, openapi_url=None if settings.is_production else "/api/openapi.json",
@@ -27,7 +38,7 @@ def create_app() -> FastAPI:
 
     if settings.cors_origin_list:
         app.add_middleware(
-            CORSMiddleware, allow_origins=settings.cors_origin_list, allow_methods=["GET", "POST"],
+            CORSMiddleware, allow_origins=settings.cors_origin_list, allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
             allow_headers=["Authorization", "Content-Type"],
         )
 
@@ -61,8 +72,12 @@ def create_app() -> FastAPI:
             db.execute(text("SELECT 1"))
         return {"status": "ok"}
 
-    for module in (auth, pricing, parcels, tracking, dashboard):
+    for module in (auth, pricing, parcels, tracking, dashboard, admin):
         app.include_router(module.router, prefix="/api")
+
+    @app.get("/admin", include_in_schema=False)
+    def admin_page():
+        return FileResponse(FRONTEND_DIR / "admin" / "index.html", headers={"Cache-Control": "no-cache"})
 
     if FRONTEND_DIR.is_dir():
         app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

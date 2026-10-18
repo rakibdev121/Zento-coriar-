@@ -4,7 +4,7 @@ Courier delivery web app: public website, customer accounts, parcel booking with
 
 **Stack:** FastAPI + SQLAlchemy 2 + Alembic + PostgreSQL (Supabase-ready) on the back end; plain HTML, CSS and vanilla JavaScript (ES modules) on the front end. No Node.js is needed to run anything. FastAPI serves the API under `/api` and the static site from `frontend/`, so one process is enough.
 
-**Not in Phase 1:** admin panel, rider panel, payments, notifications, status updates by staff. Until those exist, parcels stay `booked` unless the customer cancels them.
+**Admin panel:** served at `/admin` (see below). **Not built yet:** rider mobile panel, payments, editable pricing rules.
 
 ## Quick start
 
@@ -44,6 +44,16 @@ Supabase enables Row Level Security on tables created through its dashboard. Tab
 | `CURRENCY` | no | ISO code shown in prices, default `USD` |
 | `CORS_ORIGINS` | no | Comma-separated. Only needed if the frontend is hosted on a different origin |
 
+## Admin panel (`/admin`)
+
+Dark dashboard for staff: dashboard, parcels (status updates, rider and courier assignment, CSV export), bookings (create on behalf of a customer), customers (add, suspend), riders, courier providers, delivery pricing (read-only view and calculator), service areas, reports, notifications and settings.
+
+1. Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` (8+ characters, letters and numbers) on the host. On every start the app creates that account, or promotes it if the email is already registered (its password is not changed). Alternatively promote an existing account by SQL: `UPDATE users SET is_admin = true WHERE email = 'you@example.com';`
+2. Deploy (the Dockerfile runs `alembic upgrade head`, which adds migration `0002`), then open `https://<your-site>/admin` and sign in.
+3. Everything the panel does goes through `/api/admin/*`, which returns 403 for non-admin accounts.
+
+Notes: *Recent Activities* and *Notifications* combine new bookings, new customers and staff actions. The Live Tracking map is an illustration of the route between the two cities; the app stores no GPS coordinates. Service areas are informational and are not enforced when customers book.
+
 ## Tests
 
 ```bash
@@ -68,6 +78,7 @@ Tests use an in-memory SQLite database, so no Postgres is needed. They cover pri
 | `GET /api/dashboard/summary` | yes | Counts, total spent, recent parcels |
 | `GET /api/track/{tracking_number}` | no | Public tracking: cities, status, timeline. No names, phones or street addresses |
 | `GET /api/health` | no | Database connectivity check |
+| `/api/admin/*` | admin | Dashboard, parcels, bookings, customers, riders, providers, areas, pricing, reports, notifications |
 
 Validation errors return `422` as `{"detail": "...", "errors": [{"field": "...", "message": "..."}]}`; the frontend maps `field` to the input.
 
