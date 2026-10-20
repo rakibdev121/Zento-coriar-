@@ -1,7 +1,5 @@
 name: Build Android apps
 
-# Builds three installable APKs (website, admin, rider) that open your deployed ZENTO server.
-# Run it from the Actions tab (Run workflow) or push a change under android/.
 on:
   workflow_dispatch:
   push:
@@ -13,7 +11,6 @@ jobs:
   apk:
     runs-on: ubuntu-latest
     env:
-      # Settings > Secrets and variables > Actions > Variables > New repository variable: ZENTO_BASE_URL = https://your-site.example.com
       ZENTO_BASE_URL: ${{ vars.ZENTO_BASE_URL }}
     steps:
       - uses: actions/checkout@v4
@@ -32,9 +29,17 @@ jobs:
           java-version: "17"
 
       - name: Android SDK packages
+        continue-on-error: true
+        shell: bash {0}
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+          SDKM="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKM" ]; then
+            yes | "$SDKM" --licenses > /dev/null 2>&1
+            "$SDKM" "platforms;android-34" "build-tools;34.0.0"
+          else
+            echo "sdkmanager not found; using the SDK already installed on the runner."
+          fi
+          exit 0
 
       - uses: gradle/actions/setup-gradle@v4
         with:
