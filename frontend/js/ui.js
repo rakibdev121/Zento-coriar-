@@ -1,4 +1,5 @@
 import { getUser, getToken, signOut } from "./api.js";
+import { getLang, setLang, locale, toEnglish } from "./i18n.js";
 
 /** Tiny DOM builder: h("div", {class: "x", onclick: fn}, "text", childNode) */
 export function h(tag, props = {}, ...children) {
@@ -24,8 +25,8 @@ export function money(amount, _currency) {
   const n = Number(amount) || 0;
   return `\u09F3${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
-export const fmtDateTime = (iso) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-export const fmtDate = (iso) => new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" });
+export const fmtDateTime = (iso) => new Date(iso).toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" });
+export const fmtDate = (iso) => new Date(iso).toLocaleDateString(locale(), { dateStyle: "medium" });
 export function etaText(min, max) {
   if (max === 0) return "Delivered today";
   if (min === max) return min === 1 ? "Delivered next day" : `Delivered in ${min} days`;
@@ -43,12 +44,17 @@ export function renderChrome(active) {
     signedIn ? [link("book.html", "Book a parcel"), link("dashboard.html", "My parcels"), link("wallet.html", "Wallet"),
       h("button", { class: "btn btn-ghost btn-sm", type: "button", onclick: signOut }, "Sign out")]
       : [link("login.html", "Sign in"), h("a", { class: "btn btn-primary btn-sm", href: "register.html" }, "Create account")]);
+  // Language switch: shows the language you can change to. The page translates in place, no reload.
+  // One button inside the menu (wide screens) and one beside the Menu button (phones), so it is always reachable.
+  const mkLang = (cls) => { const b = h("button", { class: `btn btn-ghost btn-sm lang-toggle ${cls}`, type: "button", "aria-label": "Language", onclick: () => setLang(getLang() === "bn" ? "en" : "bn") }, getLang() === "bn" ? "English" : "বাংলা");
+    window.addEventListener("zento:lang", () => { b.textContent = getLang() === "bn" ? "English" : "বাংলা"; }); return b; };
+  nav.append(mkLang("lang-nav")); const langTop = mkLang("lang-top");
   const logo = h("a", { class: "logo", href: "index.html", "aria-label": "ZENTO COURIER home" });
   logo.insertAdjacentHTML("afterbegin", LOGO);
   logo.append("ZENTO", h("small", {}, "COURIER"));
   const toggle = h("button", { class: "btn btn-ghost btn-sm menu-toggle", type: "button", "aria-expanded": "false", "aria-controls": "site-nav",
     onclick: (e) => { const open = nav.classList.toggle("open"); e.currentTarget.setAttribute("aria-expanded", String(open)); } }, "Menu");
-  document.getElementById("site-header")?.replaceChildren(h("div", { class: "shell" }, logo, toggle, nav));
+  document.getElementById("site-header")?.replaceChildren(h("div", { class: "shell" }, logo, langTop, toggle, nav));
   document.getElementById("site-footer")?.replaceChildren(h("div", { class: "shell" },
     h("span", {}, `\u00A9 ${new Date().getFullYear()} ZENTO COURIER`),
     h("span", {}, user ? `Signed in as ${user.email}` : "Parcel delivery you can follow end to end")));
@@ -62,7 +68,7 @@ export function toast(message) {
 }
 
 export function setBusy(button, busy, busyLabel = "Working\u2026") {
-  if (busy) { button.dataset.label = button.textContent; button.textContent = busyLabel; button.setAttribute("aria-busy", "true"); button.disabled = true; }
+  if (busy) { button.dataset.label = toEnglish(button.textContent); button.textContent = busyLabel; button.setAttribute("aria-busy", "true"); button.disabled = true; }
   else { button.textContent = button.dataset.label || button.textContent; button.removeAttribute("aria-busy"); button.disabled = false; }
 }
 

@@ -1,4 +1,5 @@
 import { api, requireAuth, getUser, downloadFile } from "./api.js";
+import { t } from "./i18n.js";
 import { renderChrome, h, money, fmtDate, statusBadge, STATUS_LABEL, renderTimeline, toast } from "./ui.js";
 
 if (!requireAuth()) await new Promise(() => {}); // redirecting to sign in; stop this module quietly
@@ -90,7 +91,7 @@ async function savePdf(p, btn) {
 }
 
 async function cancel(p, btn) {
-  if (!confirm(`Cancel ${p.tracking_number}? The price goes back to your wallet.`)) return;
+  if (!confirm(t(`Cancel ${p.tracking_number}? The price goes back to your wallet.`))) return;
   btn.disabled = true;
   try {
     await api(`/parcels/${p.id}/cancel`, { method: "POST" });
@@ -100,5 +101,6 @@ async function cancel(p, btn) {
   } catch (err) { btn.disabled = false; toast(err.message); }
 }
 
+window.addEventListener("zento:lang", () => { if (els.detail.open) els.detail.close(); loadAll(); });
 els.filter.addEventListener("change", () => { state.status = els.filter.value; go(1); });
 loadAll();

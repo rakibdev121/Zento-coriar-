@@ -7,7 +7,10 @@ const input = form.elements.n;
 const result = document.getElementById("result");
 const errorSlot = document.getElementById("track-error");
 
+let current = null;
+window.addEventListener("zento:lang", () => { if (current) lookup(current); });
 async function lookup(raw) {
+  current = raw;
   errorSlot.textContent = "";
   result.replaceChildren(h("div", { class: "skeleton", style: "height:120px;max-width:620px" }));
   const btn = form.querySelector("button");

@@ -81,3 +81,5 @@ function render(w) {
 }
 
 load();
+
+window.addEventListener("zento:lang", load);

@@ -31,7 +31,7 @@ export function renderQuote(panel, quote, currency) {
     h("h2", {}, "Your price"),
     h("dl", {}, quote.lines.map((l) => h("div", { class: "row" }, h("dt", {}, l.label), h("dd", {}, money(l.amount, currency))))),
     h("div", { class: "total" }, h("span", {}, "Total"), h("span", { class: "num" }, money(quote.total, currency))),
-    h("p", { class: "eta" }, `${etaText(quote.eta_min_days, quote.eta_max_days)}. Charged for ${Number(quote.chargeable_weight_kg)} kg.`));
+    h("p", { class: "eta" }, `${etaText(quote.eta_min_days, quote.eta_max_days)}.`, ` Charged for ${Number(quote.chargeable_weight_kg)} kg.`));
 }
 
 /** Live quote: re-prices (debounced) whenever the form changes. Returns a function to force a refresh. */

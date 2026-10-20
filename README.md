@@ -68,6 +68,12 @@ Notes: *Recent Activities* and *Notifications* combine new bookings, new custome
 
 Riders added by hand with *Add Rider* have no login; they are approved straight away and assigned without the accept/reject step, as before.
 
+## Languages (Bangla / English)
+
+The customer website has a language button in the header (**বাংলা** / **English**). The choice is remembered in the browser; on first visit it follows the phone's language. Switching translates the page in place, no reload.
+
+How it works: `frontend/js/i18n.js` swaps English texts for the Bangla ones listed in `frontend/js/lang-bn.js` (English text on the left, Bangla on the right; `{0}`, `{1}` stand for values that change). To fix a translation, edit the Bangla side. To translate a new text, add a line. Error messages from the server are translated the same way when they are listed there; unlisted ones show in English. Dates use Bangla month names with normal digits. The Bangla font (Hind Siliguri) loads from Google Fonts. The admin panel and rider app are still English only.
+
 ## Wallet and Cash on Delivery
 
 All money is in taka (the taka sign in the apps; `Tk` in PDFs because the PDF fonts have no taka glyph).

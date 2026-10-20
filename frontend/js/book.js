@@ -78,7 +78,7 @@ form.addEventListener("submit", async (e) => {
       h("h1", { style: "font-size:2rem" }, "Booking confirmed"),
       h("p", { class: "muted" }, "Your tracking number"),
       h("span", { class: "tracking-no" }, p.tracking_number),
-      h("p", {}, `${money(p.price_total)} was taken from your wallet.` + (Number(p.cod_amount) > 0 ? ` The rider will collect ${money(p.cod_amount)} from the receiver and it will be added to your wallet after delivery.` : "")),
+      h("p", {}, `${money(p.price_total)} was taken from your wallet.`, Number(p.cod_amount) > 0 ? ` The rider will collect ${money(p.cod_amount)} from the receiver and it will be added to your wallet after delivery.` : null),
       h("p", {}, "Keep this number. Anyone with it can follow the parcel."),
       h("div", { class: "hero-actions", style: "justify-content:center" },
         h("a", { class: "btn btn-primary", href: "dashboard.html" }, "View my parcels"),
